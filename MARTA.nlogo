@@ -10,6 +10,7 @@ bikes-own [speedx speedy state]
 to setup; clear time and space
   clear-all
   reset-ticks
+  ask patches [set pcolor blue + 2]
   if cycle? [
     set Nb-peds 5
     set Nb-bikes 5
@@ -49,6 +50,7 @@ to c-ped [x y k]; procedure creates a pedestrian and sets its properties
   create-peds 1 [
     set shape "person"
     set color cyan
+    set size 1
     set xcor x + random-normal 0 0.2
     set ycor y + random-normal 0 0.2
     if k = -1 [
@@ -67,7 +69,8 @@ to c-bike [x y k]
   ]
   create-bikes 1 [
     set shape "bike"
-    set color green
+    set size 2
+    set color magenta
     set xcor x + random-normal 0 0.2
     set ycor y + random-normal 0 0.2
     if k = -1 [
@@ -172,19 +175,23 @@ to move
   ]
 
   ; Create lists of peds and bikes with speed
-  let peds-with-speed peds with [state > -1]
-  let bikes-with-speed bikes with [state > -1]
+  let peds-with-speed [ self ] of peds with [state > -1]
+  let bikes-with-speed [ self ] of bikes with [state > -1]
 
   ; Update mean and standard deviation of speed for peds
-  if any? peds-with-speed [
+  if not empty? peds-with-speed [
     set mean-speed mean-speed + mean [sqrt(speedx ^ 2 + speedy ^ 2)] of peds-with-speed
-    set stddev-speed stddev-speed + sqrt(variance [sqrt(speedx ^ 2 + speedy ^ 2)] of peds-with-speed)
+    if length peds-with-speed > 1 [
+      set stddev-speed stddev-speed + sqrt(variance [sqrt(speedx ^ 2 + speedy ^ 2)] of peds-with-speed)
+    ]
   ]
 
   ; Update mean and standard deviation of speed for bikes
-  if any? bikes-with-speed [
+  if not empty? bikes-with-speed [
     set mean-speed mean-speed + mean [sqrt(speedx ^ 2 + speedy ^ 2)] of bikes-with-speed
-    set stddev-speed stddev-speed + sqrt(variance [sqrt(speedx ^ 2 + speedy ^ 2)] of bikes-with-speed)
+    if length bikes-with-speed > 1 [
+      set stddev-speed stddev-speed + sqrt(variance [sqrt(speedx ^ 2 + speedy ^ 2)] of bikes-with-speed)
+    ]
   ]
 
   ; Update cumulative flow for peds crossing the center
@@ -268,7 +275,7 @@ Nb-peds
 Nb-peds
 0
 224
-0.0
+94.0
 1
 1
 NIL
@@ -628,7 +635,7 @@ Nb-Bikes
 Nb-Bikes
 0
 100
-99.0
+71.0
 1
 1
 NIL
@@ -810,6 +817,26 @@ Polygon -1 true false 135 195 119 235 95 218 76 210 46 204 60 165
 Polygon -1 true false 75 45 83 77 71 103 86 114 166 78 135 60
 Polygon -7500403 true true 30 136 151 77 226 81 280 119 292 146 292 160 287 170 270 195 195 210 151 212 30 166
 Circle -16777216 true false 215 106 30
+
+fish 3
+false
+0
+Polygon -7500403 true true 137 105 124 83 103 76 77 75 53 104 47 136
+Polygon -7500403 true true 226 194 223 229 207 243 178 237 169 203 167 175
+Polygon -7500403 true true 137 195 124 217 103 224 77 225 53 196 47 164
+Polygon -7500403 true true 40 123 32 109 16 108 0 130 0 151 7 182 23 190 40 179 47 145
+Polygon -7500403 true true 45 120 90 105 195 90 275 120 294 152 285 165 293 171 270 195 210 210 150 210 45 180
+Circle -1184463 true false 244 128 26
+Circle -16777216 true false 248 135 14
+Line -16777216 false 48 121 133 96
+Line -16777216 false 48 179 133 204
+Polygon -7500403 true true 241 106 241 77 217 71 190 75 167 99 182 125
+Line -16777216 false 226 102 158 95
+Line -16777216 false 171 208 225 205
+Polygon -1 true false 252 111 232 103 213 132 210 165 223 193 229 204 247 201 237 170 236 137
+Polygon -1 true false 135 98 140 137 135 204 154 210 167 209 170 176 160 156 163 126 171 117 156 96
+Polygon -16777216 true false 192 117 171 118 162 126 158 148 160 165 168 175 188 183 211 186 217 185 206 181 172 171 164 156 166 133 174 121
+Polygon -1 true false 40 121 46 147 42 163 37 179 56 178 65 159 67 128 59 116
 
 flag
 false
