@@ -135,7 +135,7 @@ to move
     clear-plot
     reset-ticks
     ifelse Nb-peds > 200 [stop] [set-agents]
-  ]; if cycle is true, instructs the model to plot specific diagrams, reset simulation variavles, add pedestrians and not exceed 200
+  ];
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
