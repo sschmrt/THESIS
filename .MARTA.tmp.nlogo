@@ -1,17 +1,22 @@
 
 breed [peds ped] ; defines the breed of turtles, ped is a unit of the breed
-globals [time mean-speed stddev-speed flow-cum]; variables focus on time elapsed, avarage speed, speed variability amongst ped, flow in a certain area
+breed [bikes bike]
+globals [time mean-speed stddev-speed flow-cum ]; variables focus on time elapsed, avarage speed, speed variability amongst ped, flow in a certain area
 peds-own [speedx speedy state]; properies of each ped include speed in dirextion xy + if ped walking, standing, interacting
 ; what the duck is dt
+bikes-own [speedx speedy state]
+
 
 to setup; clear time and space
   clear-all
   reset-ticks
   if cycle? [
     set Nb-peds 5
+    set Nb-bikes 5
     set dt 0.05
   ]; if the simulation periodically resets, reset the number of peds to 5
   set-agents
+  set-bikes
 end
 
 to set-agents
@@ -21,6 +26,16 @@ to set-agents
   ask n-of round (p * nb-peds) peds [
     set state 2
     set color orange
+  ]
+end
+
+to set-bikes
+  repeat Nb-bikes [
+    c-bike 0 0 0 ; initial position and state for bikes
+  ]
+  ask n-of round (p * Nb-bikes) bikes [
+    set state 2
+    set color green
   ]
 end
 
@@ -34,6 +49,25 @@ to c-ped [x y k]; procedure creates a pedestrian and sets its properties
   create-peds 1 [
     set shape "person"
     set color cyan
+    set xcor x + random-normal 0 0.2
+    set ycor y + random-normal 0 0.2
+    if k = -1 [
+      set color white
+      set state -1
+    ]
+  ]
+end
+
+to c-bike [x y k]
+  if k = 0 [
+    ask one-of patches with [not any? bikes-here] [
+      set x pxcor
+      set y pycor
+    ]
+  ]
+  create-bikes 1 [
+    set shape "bicycle"
+    set color green
     set xcor x + random-normal 0 0.2
     set ycor y + random-normal 0 0.2
     if k = -1 [
@@ -82,32 +116,78 @@ to plot!; updates various plots during the procedure
 end
 
 to move
-  set time precision (time + dt) 5
-  tick-advance 1
+  set time precision (time + dt) 5 ; Update the time with a precision of 5 decimal places
+  tick-advance 1 ; Advance the tick counter by 1
+
+  ; Update positions and velocities of pedestrians
   ask peds with [state > -1] [
-    let repx 0 ; accumulated repulsion force
-    let repy 0
-    let hd hd1
-    if state = 2 [set hd hd2]; heading angle based on pedestrian type
-    let h hd1
+    let repx 0 ; Initialize accumulated repulsion force in x direction
+    let repy 0 ; Initialize accumulated repulsion force in y direction
+    let hd hd1 ; Set the initial heading direction
+    if state = 2 [set hd hd2] ; If the state is 2, set the heading direction to hd2
+    let h hd1 ; Set the initial heading angle
     if (speedx * speedy != 0) [
-      set h atan speedx speedy
+      set h atan speedx speedy ; Calculate the heading angle based on speed
     ]
     ask peds in-radius (2 * D) with [not (self = myself)] [
+      ; Calculate repulsion forces from neighboring pedestrians
       set repx repx + A * exp((1 - distance myself) / D) * sin(towards myself) * (1 - cos(towards myself - h))
       set repy repy + A * exp((1 - distance myself) / D) * cos(towards myself) * (1 - cos(towards myself - h))
-    ]; calculate repulsion forces
+    ]
+    ; Update velocities based on repulsion forces and desired velocity
     set speedx speedx + dt * (repx + (V0 * sin hd - speedx) / Tr)
-    set speedy speedy + dt * (repy + (V0 * cos hd - speedy) / Tr); update velocities
+    set speedy speedy + dt * (repy + (V0 * cos hd - speedy) / Tr)
   ]
 
-  ask peds [
-    set xcor xcor + speedx * dt
-    set ycor ycor + speedy * dt
-  ]; update positions
+  ; Update positions and velocities of bikes
+  ask bikes with [state > -1] [
+    let repx 0 ; Initialize accumulated repulsion force in x direction
+    let repy 0 ; Initialize accumulated repulsion force in y direction
+    let hd hd1 ; Set the initial heading direction
+    if state = 2 [set hd hd2] ; If the state is 2, set the heading direction to hd2
+    let h hd1 ; Set the initial heading angle
+    if (speedx * speedy != 0) [
+      set h atan speedx speedy ; Calculate the heading angle based on speed
+    ]
+    ask bikes in-radius (2 * D) with [not (self = myself)] [
+      ; Calculate repulsion forces from neighboring bikes
+      set repx repx + A * exp((1 - distance myself) / D) * sin(towards myself) * (1 - cos(towards myself - h))
+      set repy repy + A * exp((1 - distance myself) / D) * cos(towards myself) * (1 - cos(towards myself - h))
+    ]
+    ; Update velocities based on repulsion forces and desired velocity
+    set speedx speedx + dt * (repx + (V0 * sin hd - speedx) / Tr)
+    set speedy speedy + dt * (repy + (V0 * cos hd - speedy) / Tr)
+  ]
 
-  set mean-speed mean-speed + mean [sqrt(speedx ^ 2 + speedy ^ 2)] of peds with [state > -1]
-  set stddev-speed stddev-speed + sqrt(variance [sqrt(speedx ^ 2 + speedy ^ 2)] of peds with [state > -1])
+  ; Update positions of pedestrians
+  ask peds [
+    set xcor xcor + speedx * dt ; Update x position
+    set ycor ycor + speedy * dt ; Update y position
+  ]
+
+  ; Update positions of bikes
+  ask bikes [
+    set xcor xcor + speedx * dt ; Update x position
+    set ycor ycor + speedy * dt ; Update y position
+  ]
+
+  ; Create lists of peds and bikes with speed
+  let peds-with-speed peds with [state > -1]
+  let bikes-with-speed bikes with [state > -1]
+
+  ; Update mean and standard deviation of speed for peds
+  if any? peds-with-speed [
+    set mean-speed mean-speed + mean [sqrt(speedx ^ 2 + speedy ^ 2)] of peds-with-speed
+    set stddev-speed stddev-speed + sqrt(variance [sqrt(speedx ^ 2 + speedy ^ 2)] of peds-with-speed)
+  ]
+
+  ; Update mean and standard deviation of speed for bikes
+  if any? bikes-with-speed [
+    set mean-speed mean-speed + mean [sqrt(speedx ^ 2 + speedy ^ 2)] of bikes-with-speed
+    set stddev-speed stddev-speed + sqrt(variance [sqrt(speedx ^ 2 + speedy ^ 2)] of bikes-with-speed)
+  ]
+
+  ; Update cumulative flow for peds crossing the center
   ask peds with [
     (xcor > 0 and xcor - speedx * dt <= 0) or
     (xcor < 0 and xcor - speedx * dt >= 0) or
@@ -115,27 +195,41 @@ to move
     (ycor < 0 and ycor - speedy * dt >= 0)
   ] [
     set flow-cum flow-cum + 1
-  ]; counts pedestrians crossing the center of the simulation area, updates cumulative flow
-  plot!
+  ]
 
+  ; Update cumulative flow for bikes crossing the center
+  ask bikes with [
+    (xcor > 0 and xcor - speedx * dt <= 0) or
+    (xcor < 0 and xcor - speedx * dt >= 0) or
+    (ycor > 0 and ycor - speedy * dt <= 0) or
+    (ycor < 0 and ycor - speedy * dt >= 0)
+  ] [
+    set flow-cum flow-cum + 1
+  ]
+
+  plot! ; Update the plots
+
+  ; Handle the cycling of the simulation
   if cycle? and time > 500 [
     set-current-plot "Fundamental diagram"
     plotxy (Nb-peds / world-width / world-height) (Nb-peds / world-width / world-height * mean-speed / ticks)
     set-current-plot "Speed stddev"
     plotxy (Nb-peds / world-width / world-height) (stddev-speed / ticks)
     ask peds [die]
-    set Nb-peds Nb-peds + 20
-    set time 0
-    set mean-speed 0
-    set stddev-speed 0
-    set flow-cum 0
+    ask bikes [die]
+    set Nb-peds Nb-peds + 20 ; Increase the number of pedestrians
+    set Nb-bikes Nb-bikes + 20 ; Increase the number of bikes
+    set time 0 ; Reset time
+    set mean-speed 0 ; Reset mean speed
+    set stddev-speed 0 ; Reset standard deviation of speed
+    set flow-cum 0 ; Reset cumulative flow
     set-current-plot "Speed"
     clear-plot
     set-current-plot "Mean flow"
     clear-plot
     reset-ticks
-    ifelse Nb-peds > 200 [stop] [set-agents]
-  ];
+    ifelse Nb-peds > 200 [stop] [set-agents set-bikes] ; Stop if the number of pedestrians exceeds 200
+  ]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
@@ -174,7 +268,7 @@ Nb-peds
 Nb-peds
 0
 224
-183.0
+0.0
 1
 1
 NIL
@@ -525,6 +619,21 @@ NIL
 NIL
 1
 
+SLIDER
+23
+108
+195
+141
+Nb-Bikes
+Nb-Bikes
+0
+100
+100.0
+1
+1
+NIL
+HORIZONTAL
+
 @#$#@#$#@
 ## WHAT IS IT?
 
@@ -576,6 +685,29 @@ arrow
 true
 0
 Polygon -7500403 true true 150 0 0 150 105 150 105 293 195 293 195 150 300 150
+
+bike
+false
+1
+Line -7500403 false 163 183 228 184
+Circle -7500403 false false 213 184 22
+Circle -7500403 false false 156 187 16
+Circle -16777216 false false 28 148 95
+Circle -16777216 false false 24 144 102
+Circle -16777216 false false 174 144 102
+Circle -16777216 false false 177 148 95
+Polygon -2674135 true true 75 195 90 90 98 92 97 107 192 122 207 83 215 85 202 123 211 133 225 195 165 195 164 188 214 188 202 133 94 116 82 195
+Polygon -2674135 true true 208 83 164 193 171 196 217 85
+Polygon -2674135 true true 165 188 91 120 90 131 164 196
+Line -7500403 false 159 173 170 219
+Line -7500403 false 155 172 166 172
+Line -7500403 false 166 219 177 219
+Polygon -16777216 true false 187 92 198 92 208 97 217 100 231 93 231 84 216 82 201 83 184 85
+Polygon -7500403 true true 71 86 98 93 101 85 74 81
+Rectangle -16777216 true false 75 75 75 90
+Polygon -16777216 true false 70 87 70 72 78 71 78 89
+Circle -7500403 false false 153 184 22
+Line -7500403 false 159 206 228 205
 
 box
 false
