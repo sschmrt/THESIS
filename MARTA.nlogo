@@ -1,16 +1,22 @@
-
 breed [peds ped] ; defines the breed of turtles, ped is a unit of the breed
 breed [bikes bike]
-globals [time mean-speed stddev-speed flow-cum ]; variables focus on time elapsed, avarage speed, speed variability amongst ped, flow in a certain area
+globals [time mean-speed stddev-speed flow-cum polygons dataset ]; variables focus on time elapsed, avarage speed, speed variability amongst ped, flow in a certain area
 peds-own [speedx speedy state]; properies of each ped include speed in dirextion xy + if ped walking, standing, interacting
 ; what the duck is dt
 bikes-own [speedx speedy state]
+extensions [gis]
 
 
 to setup; clear time and space
   clear-all
   reset-ticks
-  ask patches [set pcolor blue + 2]
+  ; load GEOJSON and make sure the envelopes match
+  set dataset gis:load-dataset "STUDYAREA.geojson"
+   gis:set-world-envelope gis:envelope-of dataset
+  ; Color patches inside the polygon
+  gis:set-drawing-color red
+  gis:draw dataset 1
+  ; cycle
   if cycle? [
     set Nb-peds 5
     set Nb-bikes 5
@@ -19,6 +25,7 @@ to setup; clear time and space
   set-agents
   set-bikes
 end
+
 
 to set-agents
   repeat nb-peds [
@@ -180,19 +187,21 @@ to move
 
   ; Update mean and standard deviation of speed for peds
   if not empty? peds-with-speed [
-    set mean-speed mean-speed + mean [sqrt(speedx ^ 2 + speedy ^ 2)] of peds-with-speed
-    if length peds-with-speed > 1 [
-      set stddev-speed stddev-speed + sqrt(variance [sqrt(speedx ^ 2 + speedy ^ 2)] of peds-with-speed)
-    ]
+  let peds-agentset turtle-set peds-with-speed ; Convert the list back to an agentset
+  set mean-speed mean-speed + mean [sqrt(speedx ^ 2 + speedy ^ 2)] of peds-agentset
+  if count peds-agentset > 1 [
+    set stddev-speed stddev-speed + sqrt(variance [sqrt(speedx ^ 2 + speedy ^ 2)] of peds-agentset)
   ]
+]
 
   ; Update mean and standard deviation of speed for bikes
   if not empty? bikes-with-speed [
-    set mean-speed mean-speed + mean [sqrt(speedx ^ 2 + speedy ^ 2)] of bikes-with-speed
-    if length bikes-with-speed > 1 [
-      set stddev-speed stddev-speed + sqrt(variance [sqrt(speedx ^ 2 + speedy ^ 2)] of bikes-with-speed)
-    ]
+    let bikes-agentset turtle-set bikes-with-speed ; Convert the list back to an agentset
+  set mean-speed mean-speed + mean [sqrt(speedx ^ 2 + speedy ^ 2)] of bikes-agentset
+  if count bikes-agentset > 1 [
+    set stddev-speed stddev-speed + sqrt(variance [sqrt(speedx ^ 2 + speedy ^ 2)] of bikes-agentset)
   ]
+]
 
   ; Update cumulative flow for peds crossing the center
   ask peds with [
@@ -362,7 +371,7 @@ V0
 V0
 0
 5
-1.0
+3.0
 1
 1
 NIL
