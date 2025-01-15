@@ -1,6 +1,6 @@
 breed [peds ped] ; defines the breed of turtles, ped is a unit of the breed
 breed [bikes bike]
-globals [time mean-speed stddev-speed flow-cum polygons dataset ]; variables focus on time elapsed, avarage speed, speed variability amongst ped, flow in a certain area
+globals [time mean-speed stddev-speed flow-cum polygons dataset study-area-patches]; variables focus on time elapsed, avarage speed, speed variability amongst ped, flow in a certain area
 peds-own [speedx speedy state]; properies of each ped include speed in dirextion xy + if ped walking, standing, interacting
 ; what the duck is dt
 bikes-own [speedx speedy state]
@@ -14,8 +14,9 @@ to setup; clear time and space
   set dataset gis:load-dataset "STUDYAREA.geojson"
    gis:set-world-envelope gis:envelope-of dataset
   ; Color patches inside the polygon
+  set study-area-patches patches with ["id"= 1]
   gis:set-drawing-color red
-  gis:draw dataset 1
+  gis:draw dataset 2
   ; cycle
   if cycle? [
     set Nb-peds 5
@@ -47,13 +48,17 @@ to set-bikes
   ]
 end
 
-to c-ped [x y k]; procedure creates a pedestrian and sets its properties
+to c-ped [x y k]
   if k = 0 [
-    ask one-of patches with [not any? peds-here] [
-      set x pxcor;put the good ol pedestrian there
-      set y pycor
-    ] ;randomly select patch where no pedestrians currently
-  ]
+     let suitable-patches patches with [not any? peds-here and member? self study-area-patches]
+    if any? suitable-patches [
+      ask one-of suitable-patches [
+        set x pxcor ; put the good ol pedestrian there
+        set y pycor
+      ] ; randomly select patch where no pedestrians currently
+    ] ; handle case where no suitable patches are found
+  ] ; randomly select patch where no pedestrians currently
+
   create-peds 1 [
     set shape "person"
     set color cyan
@@ -69,9 +74,11 @@ end
 
 to c-bike [x y k]
   if k = 0 [
-    ask one-of patches with [not any? bikes-here] [
-      set x pxcor
-      set y pycor
+    let suitable-patches patches with [not any? bikes-here and member? self study-area-patches]
+    if any? suitable-patches [
+      let chosen-patch one-of suitable-patches
+      set x [pxcor] of chosen-patch
+      set y [pycor] of chosen-patch
     ]
   ]
   create-bikes 1 [
@@ -171,14 +178,24 @@ to move
 
   ; Update positions of pedestrians
   ask peds [
-    set xcor xcor + speedx * dt ; Update x position
-    set ycor ycor + speedy * dt ; Update y position
-  ]
+    set xcor xcor + speedx * dt
+    set ycor ycor + speedy * dt
+    ; Ensure peds stay within the study area
+    if not member? patch-here study-area-patches [
+      set xcor xcor - speedx * dt
+      set ycor ycor - speedy * dt
+    ]
+   ]
 
-  ; Update positions of bikes
+ ; Update positions of bikes
   ask bikes [
-    set xcor xcor + speedx * dt ; Update x position
-    set ycor ycor + speedy * dt ; Update y position
+    set xcor xcor + speedx * dt
+    set ycor ycor + speedy * dt
+    ; Ensure bikes stay within the study area
+    if not member? patch-here study-area-patches [
+      set xcor xcor - speedx * dt
+      set ycor ycor - speedy * dt
+    ]
   ]
 
   ; Create lists of peds and bikes with speed
@@ -284,7 +301,7 @@ Nb-peds
 Nb-peds
 0
 224
-94.0
+3.0
 1
 1
 NIL
@@ -644,7 +661,7 @@ Nb-Bikes
 Nb-Bikes
 0
 100
-71.0
+0.0
 1
 1
 NIL
