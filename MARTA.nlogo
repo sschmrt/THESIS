@@ -1,32 +1,44 @@
-breed [peds ped] ; defines the breed of turtles, ped is a unit of the breed
-breed [bikes bike]
-globals [time mean-speed stddev-speed flow-cum polygons dataset study-area-patches]; variables focus on time elapsed, avarage speed, speed variability amongst ped, flow in a certain area
-peds-own [speedx speedy state]; properies of each ped include speed in dirextion xy + if ped walking, standing, interacting
-; what the duck is dt
-bikes-own [speedx speedy state]
+; Marta Schwarz
+; Msc Urban Environmental Management
+; Master Thesis
+; Supervisor Arendt Ligtenberg
+
 extensions [gis]
 
+breed [peds ped]
+breed [bikes bike]
 
-to setup; clear time and space
+globals [time mean-speed stddev-speed flow-cum polygons dataset wgs84-dataset study-area-patches]
+peds-own [speedx speedy state]
+bikes-own [speedx speedy state]
+
+to setup
   clear-all
   reset-ticks
-  ; load GEOJSON and make sure the envelopes match
-  set dataset gis:load-dataset "STUDYAREA.geojson"
-   gis:set-world-envelope gis:envelope-of dataset
-  ; Color patches inside the polygon
-  set study-area-patches patches with ["id"= 1]
+
+  ; Load the GeoJSON dataset
+  set dataset gis:load-dataset "FULLSTUDYAREA.geojson"
+
+  ; Draw the dataset to visualize it
   gis:set-drawing-color red
-  gis:draw dataset 2
-  ; cycle
+  gis:draw dataset 10 ; Use 10 for polygon fill
+
+  ; Identify patches inside the polygon
+  set study-area-patches patches with [gis:intersects? self dataset]
+
+  ; Mark these patches for visualization and restrict agent movement
+  ask study-area-patches [
+    set pcolor green
+  ]
+  ; Initialize variables
   if cycle? [
     set Nb-peds 5
     set Nb-bikes 5
     set dt 0.05
-  ]; if the simulation periodically resets, reset the number of peds to 5
+  ]
   set-agents
   set-bikes
 end
-
 
 to set-agents
   repeat nb-peds [
@@ -50,21 +62,22 @@ end
 
 to c-ped [x y k]
   if k = 0 [
-     let suitable-patches patches with [not any? peds-here and member? self study-area-patches]
-    if any? suitable-patches [
-      ask one-of suitable-patches [
+    set study-area-patches patches with [not any? peds-here and member? self study-area-patches]
+    if any? study-area-patches [
+      ask one-of study-area-patches [
         set x pxcor ; put the good ol pedestrian there
         set y pycor
       ] ; randomly select patch where no pedestrians currently
-    ] ; handle case where no suitable patches are found
-  ] ; randomly select patch where no pedestrians currently
-
+    ]
+  ]
   create-peds 1 [
     set shape "person"
     set color cyan
     set size 1
     set xcor x + random-normal 0 0.2
     set ycor y + random-normal 0 0.2
+    set speedx random-float 1 - 0.5
+    set speedy random-float 1 - 0.5
     if k = -1 [
       set color white
       set state -1
@@ -74,9 +87,9 @@ end
 
 to c-bike [x y k]
   if k = 0 [
-    let suitable-patches patches with [not any? bikes-here and member? self study-area-patches]
-    if any? suitable-patches [
-      let chosen-patch one-of suitable-patches
+    set study-area-patches patches with [not any? bikes-here and member? self study-area-patches]
+    if any? study-area-patches [
+      let chosen-patch one-of study-area-patches
       set x [pxcor] of chosen-patch
       set y [pycor] of chosen-patch
     ]
@@ -87,6 +100,8 @@ to c-bike [x y k]
     set color magenta
     set xcor x + random-normal 0 0.2
     set ycor y + random-normal 0 0.2
+    set speedx random-float 1 - 0.5
+    set speedy random-float 1 - 0.5
     if k = -1 [
       set color white
       set state -1
@@ -94,15 +109,15 @@ to c-bike [x y k]
   ]
 end
 
-to Create [k]; defines create procedure, create a ped where your mouse clicks
+to Create [k]
   if (timer > 0.2 and mouse-down?) [
     reset-timer
     c-ped mouse-xcor mouse-ycor k
-  ]; can happen every 0.2 seconds, then assigns xyk
-  display; view updates immediately
+  ]
+  display
 end
 
-to Delete [k]; defines delete procedure, not sure why i would want this but sure
+to Delete [k]
   if (timer > 0.2 and mouse-down?) [
     reset-timer
     create-turtles 1 [
@@ -117,61 +132,56 @@ to Delete [k]; defines delete procedure, not sure why i would want this but sure
   display
 end
 
-to plot!; updates various plots during the procedure
+to plot!
   set-current-plot "Speed"
   set-current-plot-pen "Mean"
   plotxy time (mean-speed / ticks)
   set-current-plot-pen "Stddev"
   plotxy time (stddev-speed / ticks)
-
   set-current-plot "Mean flow"
   set-plot-y-range 0 2
-  set-current-plot-pen "Spatial" ; spatial flow = pedestrians passing through a unit area over time (how crowded)
+  set-current-plot-pen "Spatial"
   plotxy time ((mean-speed / ticks) * Nb-peds / world-width / world-height)
-  set-current-plot-pen "Temporal" ; time flow = flow rate over time (how efficiently)
+  set-current-plot-pen "Temporal"
   plotxy time (flow-cum / time / world-height)
 end
 
 to move
-  set time precision (time + dt) 5 ; Update the time with a precision of 5 decimal places
-  tick-advance 1 ; Advance the tick counter by 1
+  set time precision (time + dt) 5
+  tick-advance 1
 
   ; Update positions and velocities of pedestrians
   ask peds with [state > -1] [
-    let repx 0 ; Initialize accumulated repulsion force in x direction
-    let repy 0 ; Initialize accumulated repulsion force in y direction
-    let hd hd1 ; Set the initial heading direction
-    if state = 2 [set hd hd2] ; If the state is 2, set the heading direction to hd2
-    let h hd1 ; Set the initial heading angle
+    let repx 0
+    let repy 0
+    let hd hd1
+    if state = 2 [set hd hd2]
+    let h hd1
     if (speedx * speedy != 0) [
-      set h atan speedx speedy ; Calculate the heading angle based on speed
+      set h atan speedx speedy
     ]
     ask peds in-radius (2 * D) with [not (self = myself)] [
-      ; Calculate repulsion forces from neighboring pedestrians
       set repx repx + A * exp((1 - distance myself) / D) * sin(towards myself) * (1 - cos(towards myself - h))
       set repy repy + A * exp((1 - distance myself) / D) * cos(towards myself) * (1 - cos(towards myself - h))
     ]
-    ; Update velocities based on repulsion forces and desired velocity
     set speedx speedx + dt * (repx + (V0 * sin hd - speedx) / Tr)
     set speedy speedy + dt * (repy + (V0 * cos hd - speedy) / Tr)
   ]
 
   ; Update positions and velocities of bikes
   ask bikes with [state > -1] [
-    let repx 0 ; Initialize accumulated repulsion force in x direction
-    let repy 0 ; Initialize accumulated repulsion force in y direction
-    let hd hd1 ; Set the initial heading direction
-    if state = 2 [set hd hd2] ; If the state is 2, set the heading direction to hd2
-    let h hd1 ; Set the initial heading angle
+    let repx 0
+    let repy 0
+    let hd hd1
+    if state = 2 [set hd hd2]
+    let h hd1
     if (speedx * speedy != 0) [
-      set h atan speedx speedy ; Calculate the heading angle based on speed
+      set h atan speedx speedy
     ]
     ask bikes in-radius (2 * D) with [not (self = myself)] [
-      ; Calculate repulsion forces from neighboring bikes
       set repx repx + A * exp((1 - distance myself) / D) * sin(towards myself) * (1 - cos(towards myself - h))
       set repy repy + A * exp((1 - distance myself) / D) * cos(towards myself) * (1 - cos(towards myself - h))
     ]
-    ; Update velocities based on repulsion forces and desired velocity
     set speedx speedx + dt * (repx + (V0 * sin hd - speedx) / Tr)
     set speedy speedy + dt * (repy + (V0 * cos hd - speedy) / Tr)
   ]
@@ -185,9 +195,9 @@ to move
       set xcor xcor - speedx * dt
       set ycor ycor - speedy * dt
     ]
-   ]
+  ]
 
- ; Update positions of bikes
+  ; Update positions of bikes
   ask bikes [
     set xcor xcor + speedx * dt
     set ycor ycor + speedy * dt
@@ -204,21 +214,21 @@ to move
 
   ; Update mean and standard deviation of speed for peds
   if not empty? peds-with-speed [
-  let peds-agentset turtle-set peds-with-speed ; Convert the list back to an agentset
-  set mean-speed mean-speed + mean [sqrt(speedx ^ 2 + speedy ^ 2)] of peds-agentset
-  if count peds-agentset > 1 [
-    set stddev-speed stddev-speed + sqrt(variance [sqrt(speedx ^ 2 + speedy ^ 2)] of peds-agentset)
+    let peds-agentset turtle-set peds-with-speed
+    set mean-speed mean-speed + mean [sqrt(speedx ^ 2 + speedy ^ 2)] of peds-agentset
+    if count peds-agentset > 1 [
+      set stddev-speed stddev-speed + sqrt(variance [sqrt(speedx ^ 2 + speedy ^ 2)] of peds-agentset)
+    ]
   ]
-]
 
   ; Update mean and standard deviation of speed for bikes
   if not empty? bikes-with-speed [
-    let bikes-agentset turtle-set bikes-with-speed ; Convert the list back to an agentset
-  set mean-speed mean-speed + mean [sqrt(speedx ^ 2 + speedy ^ 2)] of bikes-agentset
-  if count bikes-agentset > 1 [
-    set stddev-speed stddev-speed + sqrt(variance [sqrt(speedx ^ 2 + speedy ^ 2)] of bikes-agentset)
+    let bikes-agentset turtle-set bikes-with-speed
+    set mean-speed mean-speed + mean [sqrt(speedx ^ 2 + speedy ^ 2)] of bikes-agentset
+    if count bikes-agentset > 1 [
+      set stddev-speed stddev-speed + sqrt(variance [sqrt(speedx ^ 2 + speedy ^ 2)] of bikes-agentset)
+    ]
   ]
-]
 
   ; Update cumulative flow for peds crossing the center
   ask peds with [
@@ -250,18 +260,18 @@ to move
     plotxy (Nb-peds / world-width / world-height) (stddev-speed / ticks)
     ask peds [die]
     ask bikes [die]
-    set Nb-peds Nb-peds + 20 ; Increase the number of pedestrians
-    set Nb-bikes Nb-bikes + 20 ; Increase the number of bikes
-    set time 0 ; Reset time
-    set mean-speed 0 ; Reset mean speed
-    set stddev-speed 0 ; Reset standard deviation of speed
-    set flow-cum 0 ; Reset cumulative flow
+    set Nb-peds Nb-peds + 20
+    set Nb-bikes Nb-bikes + 20
+    set time 0
+    set mean-speed 0
+    set stddev-speed 0
+    set flow-cum 0
     set-current-plot "Speed"
     clear-plot
     set-current-plot "Mean flow"
     clear-plot
     reset-ticks
-    ifelse Nb-peds > 200 [stop] [set-agents set-bikes] ; Stop if the number of pedestrians exceeds 200
+    ifelse Nb-peds > 200 [stop] [set-agents set-bikes]
   ]
 end
 @#$#@#$#@
@@ -301,7 +311,7 @@ Nb-peds
 Nb-peds
 0
 224
-3.0
+4.0
 1
 1
 NIL
@@ -661,7 +671,7 @@ Nb-Bikes
 Nb-Bikes
 0
 100
-0.0
+4.0
 1
 1
 NIL
