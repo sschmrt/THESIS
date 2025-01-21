@@ -9,10 +9,11 @@ breed [peds ped]
 breed [bikes bike]
 
 globals [time mean-speed stddev-speed flow-cum polygons dataset wgs84-dataset study-area-patches]
-peds-own [speedx speedy state]
-bikes-own [speedx speedy state]
+peds-own [speedx speedy state break-timer]
+bikes-own [speedx speedy state break-timer]
+;; States 1 = Actively Moving 0 = Taking a break -1= Won't cross again
 
-to setup
+to setup ;; Initialize the environment
   clear-all
   reset-ticks
 
@@ -31,106 +32,129 @@ to setup
     set pcolor green
   ]
   ; Initialize variables
-  if cycle? [
     set Nb-peds 5
     set Nb-bikes 5
     set dt 0.05
-  ]
-  set-agents
-  set-bikes
+    set-peds
+    set-bikes
 end
 
-to set-agents
-  repeat nb-peds [
-    c-ped 0 0 0 ; initial position and state
-  ]
-  ask n-of round (p * nb-peds) peds [
-    set state 2
-    set color orange
+to set-peds ;; Initialize pedestrians
+  repeat Nb-peds [
+    create-peds 1 [
+      set shape "person"
+      set color cyan
+      set size 1
+      move-to one-of study-area-patches
+      set speedx random-float 1 - 0.5
+      set speedy random-float 1 - 0.5
+      set state 1 ; Actively moving by default
+      set break-timer 0 ; Timer for taking a break
+    ]
   ]
 end
 
-to set-bikes
+to set-bikes ;; Initialize bikes
   repeat Nb-bikes [
-    c-bike 0 0 0 ; initial position and state for bikes
-  ]
-  ask n-of round (p * Nb-bikes) bikes [
-    set state 2
-    set color green
-  ]
-end
-
-to c-ped [x y k]
-  if k = 0 [
-    set study-area-patches patches with [not any? peds-here and member? self study-area-patches]
-    if any? study-area-patches [
-      ask one-of study-area-patches [
-        set x pxcor ; put the good ol pedestrian there
-        set y pycor
-      ] ; randomly select patch where no pedestrians currently
-    ]
-  ]
-  create-peds 1 [
-    set shape "person"
-    set color cyan
-    set size 1
-    set xcor x + random-normal 0 0.2
-    set ycor y + random-normal 0 0.2
-    set speedx random-float 1 - 0.5
-    set speedy random-float 1 - 0.5
-    if k = -1 [
-      set color white
-      set state -1
+    create-bikes 1 [
+      set shape "bike"
+      set color magenta
+      set size 2
+      move-to one-of study-area-patches
+      set speedx random-float 1 - 0.5
+      set speedy random-float 1 - 0.5
+      set state 1 ; Actively moving by default
+      set break-timer 0 ; Timer for taking a break
     ]
   ]
 end
 
-to c-bike [x y k]
-  if k = 0 [
-    set study-area-patches patches with [not any? bikes-here and member? self study-area-patches]
-    if any? study-area-patches [
-      let chosen-patch one-of study-area-patches
-      set x [pxcor] of chosen-patch
-      set y [pycor] of chosen-patch
-    ]
-  ]
-  create-bikes 1 [
-    set shape "bike"
-    set size 2
-    set color magenta
-    set xcor x + random-normal 0 0.2
-    set ycor y + random-normal 0 0.2
-    set speedx random-float 1 - 0.5
-    set speedy random-float 1 - 0.5
-    if k = -1 [
-      set color white
-      set state -1
+to move
+  set time precision (time + dt) 5
+  tick-advance 1
+
+  ; Update positions and states for pedestrians
+  ask peds [
+    if state = 1 [ ; Actively moving
+      move-agent
+      if random-float 1 < 0.01 [ ; Small chance to take a break
+        set state 0
+        set break-timer random 10 + 5 ; Random break duration
+        set color yellow
+      ]
+    ] if state = 0 [ ; Taking a break
+      set break-timer break-timer - 1
+      if break-timer <= 0 [ ; Resume movement
+        set state 1
+        set color cyan
+      ]
+    ] if state = -1 [ ; Finished, no action
+      set color gray
     ]
   ]
 end
+ to move-agent
+  ; Move the agent according to its speed
+  set xcor xcor + speedx * dt
+  set ycor ycor + speedy * dt
 
-to Create [k]
-  if (timer > 0.2 and mouse-down?) [
-    reset-timer
-    c-ped mouse-xcor mouse-ycor k
+  ; Ensure the agent stays within the study area
+  if not member? patch-here study-area-patches [
+    move-to one-of study-area-patches
   ]
-  display
 end
 
-to Delete [k]
-  if (timer > 0.2 and mouse-down?) [
-    reset-timer
-    create-turtles 1 [
-      set color black
-      setxy mouse-xcor mouse-ycor
-      ask peds with [state = k] in-radius 0.5 with-min [distance myself] [
-        die
+
+to c-ped [edge k]
+  if edge = 0 [
+    ; Find patches at the edges of the world
+    let suitable-patches patches with [pxcor = min-pxcor or pxcor = max-pxcor or pycor = min-pycor or pycor = max-pycor]
+    if any? suitable-patches [
+      ; Randomly select one of the suitable patches
+      let chosen-patch one-of suitable-patches
+      ; Create a new pedestrian
+      create-peds 1 [
+        set shape "person" ; Set the shape of the pedestrian
+        set color cyan ; Set the color of the pedestrian
+        set size 1 ; Set the size of the pedestrian
+        move-to chosen-patch ; Move the pedestrian to the chosen patch
+        set speedx random-float 1 - 0.5 ; Assign a random speed in the x direction
+        set speedy random-float 1 - 0.5 ; Assign a random speed in the y direction
+        set state 2
+        if k = -1 [
+          set color white ; Change color if state is -1
+          set state -1 ; Set state to -1
+        ]
       ]
     ]
-    ask turtles with [color = black] [die]
   ]
-  display
 end
+
+to c-bike [edge k]
+  if edge = 0 [
+    ; Find patches at the edges of the world
+    let suitable-patches patches with [pxcor = min-pxcor or pxcor = max-pxcor or pycor = min-pycor or pycor = max-pycor]
+    if any? suitable-patches [
+      ; Randomly select one of the suitable patches
+      let chosen-patch one-of suitable-patches
+      ; Create a new bike
+      create-bikes 1 [
+        set shape "bike" ; Set the shape of the bike
+        set size 2 ; Set the size of the bike
+        set color magenta ; Set the color of the bike
+        move-to chosen-patch ; Move the bike to the chosen patch
+        set speedx random-float 1 - 0.5 ; Assign a random speed in the x direction
+        set speedy random-float 1 - 0.5 ; Assign a random speed in the y direction
+        set state -1 - 2
+        if k = -1 [
+          set color white ; Change color if state is -1
+          set state -1 ; Set state to -1
+        ]
+      ]
+    ]
+  ]
+end
+
 
 to plot!
   set-current-plot "Speed"
@@ -146,134 +170,9 @@ to plot!
   plotxy time (flow-cum / time / world-height)
 end
 
-to move
-  set time precision (time + dt) 5
-  tick-advance 1
 
-  ; Update positions and velocities of pedestrians
-  ask peds with [state > -1] [
-    let repx 0
-    let repy 0
-    let hd hd1
-    if state = 2 [set hd hd2]
-    let h hd1
-    if (speedx * speedy != 0) [
-      set h atan speedx speedy
-    ]
-    ask peds in-radius (2 * D) with [not (self = myself)] [
-      set repx repx + A * exp((1 - distance myself) / D) * sin(towards myself) * (1 - cos(towards myself - h))
-      set repy repy + A * exp((1 - distance myself) / D) * cos(towards myself) * (1 - cos(towards myself - h))
-    ]
-    set speedx speedx + dt * (repx + (V0 * sin hd - speedx) / Tr)
-    set speedy speedy + dt * (repy + (V0 * cos hd - speedy) / Tr)
-  ]
 
-  ; Update positions and velocities of bikes
-  ask bikes with [state > -1] [
-    let repx 0
-    let repy 0
-    let hd hd1
-    if state = 2 [set hd hd2]
-    let h hd1
-    if (speedx * speedy != 0) [
-      set h atan speedx speedy
-    ]
-    ask bikes in-radius (2 * D) with [not (self = myself)] [
-      set repx repx + A * exp((1 - distance myself) / D) * sin(towards myself) * (1 - cos(towards myself - h))
-      set repy repy + A * exp((1 - distance myself) / D) * cos(towards myself) * (1 - cos(towards myself - h))
-    ]
-    set speedx speedx + dt * (repx + (V0 * sin hd - speedx) / Tr)
-    set speedy speedy + dt * (repy + (V0 * cos hd - speedy) / Tr)
-  ]
 
-  ; Update positions of pedestrians
-  ask peds [
-    set xcor xcor + speedx * dt
-    set ycor ycor + speedy * dt
-    ; Ensure peds stay within the study area
-    if not member? patch-here study-area-patches [
-      set xcor xcor - speedx * dt
-      set ycor ycor - speedy * dt
-    ]
-  ]
-
-  ; Update positions of bikes
-  ask bikes [
-    set xcor xcor + speedx * dt
-    set ycor ycor + speedy * dt
-    ; Ensure bikes stay within the study area
-    if not member? patch-here study-area-patches [
-      set xcor xcor - speedx * dt
-      set ycor ycor - speedy * dt
-    ]
-  ]
-
-  ; Create lists of peds and bikes with speed
-  let peds-with-speed [ self ] of peds with [state > -1]
-  let bikes-with-speed [ self ] of bikes with [state > -1]
-
-  ; Update mean and standard deviation of speed for peds
-  if not empty? peds-with-speed [
-    let peds-agentset turtle-set peds-with-speed
-    set mean-speed mean-speed + mean [sqrt(speedx ^ 2 + speedy ^ 2)] of peds-agentset
-    if count peds-agentset > 1 [
-      set stddev-speed stddev-speed + sqrt(variance [sqrt(speedx ^ 2 + speedy ^ 2)] of peds-agentset)
-    ]
-  ]
-
-  ; Update mean and standard deviation of speed for bikes
-  if not empty? bikes-with-speed [
-    let bikes-agentset turtle-set bikes-with-speed
-    set mean-speed mean-speed + mean [sqrt(speedx ^ 2 + speedy ^ 2)] of bikes-agentset
-    if count bikes-agentset > 1 [
-      set stddev-speed stddev-speed + sqrt(variance [sqrt(speedx ^ 2 + speedy ^ 2)] of bikes-agentset)
-    ]
-  ]
-
-  ; Update cumulative flow for peds crossing the center
-  ask peds with [
-    (xcor > 0 and xcor - speedx * dt <= 0) or
-    (xcor < 0 and xcor - speedx * dt >= 0) or
-    (ycor > 0 and ycor - speedy * dt <= 0) or
-    (ycor < 0 and ycor - speedy * dt >= 0)
-  ] [
-    set flow-cum flow-cum + 1
-  ]
-
-  ; Update cumulative flow for bikes crossing the center
-  ask bikes with [
-    (xcor > 0 and xcor - speedx * dt <= 0) or
-    (xcor < 0 and xcor - speedx * dt >= 0) or
-    (ycor > 0 and ycor - speedy * dt <= 0) or
-    (ycor < 0 and ycor - speedy * dt >= 0)
-  ] [
-    set flow-cum flow-cum + 1
-  ]
-
-  plot! ; Update the plots
-
-  ; Handle the cycling of the simulation
-  if cycle? and time > 500 [
-    set-current-plot "Fundamental diagram"
-    plotxy (Nb-peds / world-width / world-height) (Nb-peds / world-width / world-height * mean-speed / ticks)
-    set-current-plot "Speed stddev"
-    plotxy (Nb-peds / world-width / world-height) (stddev-speed / ticks)
-    ask peds [die]
-    ask bikes [die]
-    set Nb-peds Nb-peds + 20
-    set Nb-bikes Nb-bikes + 20
-    set time 0
-    set mean-speed 0
-    set stddev-speed 0
-    set flow-cum 0
-    set-current-plot "Speed"
-    clear-plot
-    set-current-plot "Mean flow"
-    clear-plot
-    reset-ticks
-    ifelse Nb-peds > 200 [stop] [set-agents set-bikes]
-  ]
-end
 @#$#@#$#@
 GRAPHICS-WINDOW
 542
@@ -311,7 +210,7 @@ Nb-peds
 Nb-peds
 0
 224
-4.0
+5.0
 1
 1
 NIL
@@ -671,7 +570,7 @@ Nb-Bikes
 Nb-Bikes
 0
 100
-4.0
+14.0
 1
 1
 NIL
