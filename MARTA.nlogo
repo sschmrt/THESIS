@@ -92,6 +92,25 @@ to move
       set color gray
     ]
   ]
+  ; Update positions and states for bikes
+  ask bikes [
+    if state = 1 [ ; Actively moving
+      move-agent
+      if random-float 1 < 0.01 [ ; Small chance to take a break
+        set state 0
+        set break-timer random 10 + 5 ; Random break duration
+        set color yellow
+      ]
+    ] if state = 0 [ ; Taking a break
+      set break-timer break-timer - 1
+      if break-timer <= 0 [ ; Resume movement
+        set state 1
+        set color cyan
+      ]
+    ] if state = -1 [ ; Finished, no action
+      set color gray
+    ]
+  ]
 end
  to move-agent
   ; Move the agent according to its speed
@@ -169,7 +188,6 @@ to plot!
   set-current-plot-pen "Temporal"
   plotxy time (flow-cum / time / world-height)
 end
-
 
 
 
@@ -570,7 +588,7 @@ Nb-Bikes
 Nb-Bikes
 0
 100
-14.0
+5.0
 1
 1
 NIL
