@@ -8,7 +8,7 @@ extensions [gis]
 breed [peds ped]
 breed [bikes bike]
 
-globals [time mean-speed stddev-speed flow-cum polygons dataset wgs84-dataset study-area-patches]
+globals [time mean-speed stddev-speed flow-cum polygons dataset wgs84-dataset study-area-patches collision-counter]
 peds-own [speedx speedy state break-timer]
 bikes-own [speedx speedy state break-timer]
 ;; States 1 = Actively Moving 0 = Taking a break -1= Won't cross again
@@ -111,7 +111,23 @@ to move
       set color gray
     ]
   ]
+  ; Detect collisions
+  ask peds [
+    if any? other peds-here or any? bikes-here [
+      set color red
+      set state -1
+      set collision-counter collision-counter + 1
+    ]
+  ]
+  ask bikes [
+    if any? other bikes-here or any? peds-here [
+      set color red
+      set state -1
+      set collision-counter collision-counter + 1
+    ]
+  ]
 end
+
  to move-agent
   ; Move the agent according to its speed
   set xcor xcor + speedx * dt
