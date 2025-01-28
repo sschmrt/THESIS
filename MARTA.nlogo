@@ -22,10 +22,16 @@ to setup ;; Initialize the environment
 
   ; Draw the dataset to visualize it
   gis:set-drawing-color red
-  gis:draw dataset 10 ; Use 10 for polygon fill
+  gis:draw dataset 0.1 ; Use 10 for polygon fill
 
-  ; Identify patches inside the polygon
-  set study-area-patches patches with [gis:intersects? self dataset]
+ ; Identify patches inside the polygons with ID 1, 2, or 3
+  set study-area-patches patches with [
+    any? gis:feature-list-of dataset with [
+      [feature] ->
+      let id gis:property-value feature "ID"
+      (id = 1 or id = 2 or id = 3) and gis:intersects? self feature
+    ]
+  ]
 
   ; Mark these patches for visualization and restrict agent movement
   ask study-area-patches [
@@ -45,7 +51,7 @@ to set-peds ;; Initialize pedestrians
       set shape "person"
       set color cyan
       set size 1
-      move-to one-of study-area-patches
+      move-to one-of patches with [gis:intersects? self dataset and (pxcor = min-pxcor or pxcor = max-pxcor or pycor = min-pycor or pycor = max-pycor)]; start from side of polygon
       set speedx random-float 1 - 0.5
       set speedy random-float 1 - 0.5
       set state 1 ; Actively moving by default
@@ -60,7 +66,7 @@ to set-bikes ;; Initialize bikes
       set shape "bike"
       set color magenta
       set size 1
-      move-to one-of study-area-patches
+      move-to one-of patches with [gis:intersects? self dataset and (pxcor = min-pxcor or pxcor = max-pxcor or pycor = min-pycor or pycor = max-pycor)]
       set speedx random-float 1 - 0.5
       set speedy random-float 1 - 0.5
       set state 1 ; Actively moving by default
@@ -130,53 +136,47 @@ to move-agent
     let polygon-id gis:property-value current-polygon "ID"
     let velocity gis:property-value current-polygon "velocity"
 
+
    if polygon-id = 1 [
-  ; Random movement within ID=1
-  let velocity-num read-from-string velocity  ; Convert velocity from string to number
-  if random-float 1 < 0.7 [  ; 70% chance to move horizontally
-    set speedx random-float velocity-num / 10
-    set speedy 0
-  ]
-  if random-float 1 >= 0.7 [  ; 30% chance to move vertically
-    set speedx 0
-    set speedy random-float velocity-num / 10
-  ]
-]
-
-   if polygon-id = 2 [
-  ; Stream in and out of ID=2 areas
-  if random-float 1 < 0.1 [  ; 10% chance to stream in/out
-    let target-feature nobody
-    foreach gis:feature-list-of dataset [
-      [feature] ->
-      if gis:intersects? self feature and gis:property-value feature "ID" = 2 [
-        set target-feature feature
+    ; Define angle for movement
+    if random-float 1 < 0.7 [  ; 70% chance to move left/right
+      ]
+      set heading one-of [150 330]  ; East or West
+    if random-float 1 > 0.7 [  ; 30% chance to move north/south
+      set heading one-of [60 240]  ; North or South
       ]
     ]
-    if target-feature != nobody [
-      let target-patch one-of patches with [gis:intersects? self target-feature]
-      if target-patch != nobody [
-        move-to target-patch
-      ]
+
+ if polygon-id = 2 [
+    ; Periodically stream in and out, with random angles
+    if random-float 1 < 0.2 [ ; 20% chance to stream
+      set heading random 360  ; Any direction
+    ]
+
+  if polygon-id = 3 [
+    ; Higher chance to stop temporarily
+    if random-float 1 < 0.2 [ ; 20% chance to pause
+       set break-timer random 20 + 5   ;
+    ]
     ]
   ]
-]
-
-
-    if polygon-id = 3 [
-      ; Higher chance of stopping in ID=3
-      if random-float 1 < 0.5 [  ; 50% chance to stop
-        set state 0  ; Set the state to "taking a break"
-        set break-timer random 10 + 5  ; Random break duration
-      ]
-    ]
-  ]
-
+         ]
   ; Update position
-  set xcor xcor + speedx * dt
-  set ycor ycor + speedy * dt
-end
+  set xcor xcor + dx
+  set ycor ycor + dy
 
+ ; Check if agent is out of study area and remove it
+  if not any? patches with [
+    any? gis:feature-list-of dataset [
+      [feature] ->
+      let polygon-id gis:property-value feature "ID"
+      (polygon-id = 1 or polygon-id = 2 or polygon-id = 3) and gis:intersects? self feature
+    ]
+  ] [
+    die
+  ]
+
+end
 
 
 
@@ -230,6 +230,7 @@ to c-bike [edge k]
     ]
   ]
 end
+
 
 
 to plot!
@@ -486,7 +487,7 @@ dt
 dt
 0
 1
-0.05
+0.06
 .01
 1
 NIL
