@@ -116,17 +116,69 @@ to move
 end
 
 to move-agent
-  let prev-x xcor
-  let prev-y ycor
+  ; Find the polygon the agent is currently in
+  let current-polygon nobody
+  foreach gis:feature-list-of dataset [
+    [feature] ->
+    if gis:intersects? self feature [
+      set current-polygon feature
+    ]
+  ]
+
+  ; Only proceed if the agent is inside a polygon
+  if current-polygon != nobody [
+    let polygon-id gis:property-value current-polygon "ID"
+    let velocity gis:property-value current-polygon "velocity"
+
+   if polygon-id = 1 [
+  ; Random movement within ID=1
+  let velocity-num read-from-string velocity  ; Convert velocity from string to number
+  if random-float 1 < 0.7 [  ; 70% chance to move horizontally
+    set speedx random-float velocity-num / 10
+    set speedy 0
+  ]
+  if random-float 1 >= 0.7 [  ; 30% chance to move vertically
+    set speedx 0
+    set speedy random-float velocity-num / 10
+  ]
+]
+
+   if polygon-id = 2 [
+  ; Stream in and out of ID=2 areas
+  if random-float 1 < 0.1 [  ; 10% chance to stream in/out
+    let target-feature nobody
+    foreach gis:feature-list-of dataset [
+      [feature] ->
+      if gis:intersects? self feature and gis:property-value feature "ID" = 2 [
+        set target-feature feature
+      ]
+    ]
+    if target-feature != nobody [
+      let target-patch one-of patches with [gis:intersects? self target-feature]
+      if target-patch != nobody [
+        move-to target-patch
+      ]
+    ]
+  ]
+]
+
+
+    if polygon-id = 3 [
+      ; Higher chance of stopping in ID=3
+      if random-float 1 < 0.5 [  ; 50% chance to stop
+        set state 0  ; Set the state to "taking a break"
+        set break-timer random 10 + 5  ; Random break duration
+      ]
+    ]
+  ]
+
+  ; Update position
   set xcor xcor + speedx * dt
   set ycor ycor + speedy * dt
- ; Ensure the agent stays within the study area
-  if not member? patch-here study-area-patches [
-    set xcor prev-x
-    set ycor prev-y
-    move-to one-of study-area-patches
-  ]
 end
+
+
+
 
 
 to c-ped [edge k]
@@ -496,7 +548,7 @@ hd1
 hd1
 0
 360
-90.0
+100.0
 5
 1
 degree
