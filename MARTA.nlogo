@@ -8,7 +8,7 @@ extensions [gis]
 breed [peds ped]
 breed [bikes bike]
 
-globals [time mean-speed stddev-speed flow-cum polygons dataset wgs84-dataset study-area-patches collision-counter]
+globals [time mean-speed stddev-speed flow-cum polygons dataset wgs84-dataset study-area-patches collision-counter severity]
 peds-own [speedx speedy state break-timer]
 bikes-own [speedx speedy state break-timer]
 ;; States 1 = Actively Moving 0 = Taking a break -1= Won't cross again
@@ -18,7 +18,7 @@ to setup ;; Initialize the environment
   reset-ticks
 
   ; Load the GeoJSON dataset
-  set dataset gis:load-dataset "FULLSTUDYAREA.geojson"
+  set dataset gis:load-dataset "C:/Users/marta/Desktop/THESIS/STUDYAREA4.geojson"
 
   ; Draw the dataset to visualize it
   gis:set-drawing-color red
@@ -59,7 +59,7 @@ to set-bikes ;; Initialize bikes
     create-bikes 1 [
       set shape "bike"
       set color magenta
-      set size 2
+      set size 1
       move-to one-of study-area-patches
       set speedx random-float 1 - 0.5
       set speedy random-float 1 - 0.5
@@ -69,6 +69,7 @@ to set-bikes ;; Initialize bikes
   ]
 end
 
+;; Move agents and detect collisions
 to move
   set time precision (time + dt) 5
   tick-advance 1
@@ -92,6 +93,7 @@ to move
       set color gray
     ]
   ]
+
   ; Update positions and states for bikes
   ask bikes [
     if state = 1 [ ; Actively moving
@@ -111,30 +113,17 @@ to move
       set color gray
     ]
   ]
-  ; Detect collisions
-  ask peds [
-    if any? other peds-here or any? bikes-here [
-      set color red
-      set state -1
-      set collision-counter collision-counter + 1
-    ]
-  ]
-  ask bikes [
-    if any? other bikes-here or any? peds-here [
-      set color red
-      set state -1
-      set collision-counter collision-counter + 1
-    ]
-  ]
 end
 
- to move-agent
-  ; Move the agent according to its speed
+to move-agent
+  let prev-x xcor
+  let prev-y ycor
   set xcor xcor + speedx * dt
   set ycor ycor + speedy * dt
-
-  ; Ensure the agent stays within the study area
+ ; Ensure the agent stays within the study area
   if not member? patch-here study-area-patches [
+    set xcor prev-x
+    set ycor prev-y
     move-to one-of study-area-patches
   ]
 end
@@ -204,9 +193,6 @@ to plot!
   set-current-plot-pen "Temporal"
   plotxy time (flow-cum / time / world-height)
 end
-
-
-
 @#$#@#$#@
 GRAPHICS-WINDOW
 542
@@ -561,40 +547,6 @@ p
 NIL
 HORIZONTAL
 
-BUTTON
-221
-149
-324
-182
-Create-obstacle
-create -1
-T
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
-
-BUTTON
-221
-184
-324
-217
-Delete-obstacle
-delete -1
-T
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
-
 SLIDER
 23
 108
@@ -609,6 +561,17 @@ Nb-Bikes
 1
 NIL
 HORIZONTAL
+
+MONITOR
+229
+167
+295
+212
+Collisions
+collision-counter
+17
+1
+11
 
 @#$#@#$#@
 ## WHAT IS IT?
