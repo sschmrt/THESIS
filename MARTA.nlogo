@@ -25,24 +25,19 @@ to setup ;; Initialize the environment
   gis:draw dataset 0.1 ; Use 10 for polygon fill
 
  ; Identify patches inside the polygons with ID 1, 2, or 3
-  set study-area-patches patches with [
-    any? gis:feature-list-of dataset with [
-      [feature] ->
-      let id gis:property-value feature "ID"
-      (id = 1 or id = 2 or id = 3) and gis:intersects? self feature
-    ]
-  ]
+  set study-area-patches patches with [is-in-study-area? self]
 
   ; Mark these patches for visualization and restrict agent movement
   ask study-area-patches [
     set pcolor green
   ]
   ; Initialize variables
-    set Nb-peds 5
-    set Nb-bikes 5
+    ;set Nb-peds
+    ;set Nb-bikes
     set dt 0.05
     set-peds
     set-bikes
+  go
 end
 
 to set-peds ;; Initialize pedestrians
@@ -51,7 +46,7 @@ to set-peds ;; Initialize pedestrians
       set shape "person"
       set color cyan
       set size 1
-      move-to one-of patches with [gis:intersects? self dataset and (pxcor = min-pxcor or pxcor = max-pxcor or pycor = min-pycor or pycor = max-pycor)]; start from side of polygon
+      move-to one-of patches with [is-in-study-area? self and (pxcor = min-pxcor or pxcor = max-pxcor or pycor = min-pycor or pycor = max-pycor)]; start from side of polygon
       set speedx random-float 1 - 0.5
       set speedy random-float 1 - 0.5
       set state 1 ; Actively moving by default
@@ -66,7 +61,7 @@ to set-bikes ;; Initialize bikes
       set shape "bike"
       set color magenta
       set size 1
-      move-to one-of patches with [gis:intersects? self dataset and (pxcor = min-pxcor or pxcor = max-pxcor or pycor = min-pycor or pycor = max-pycor)]
+      move-to one-of patches with [is-in-study-area? self and (pxcor = min-pxcor or pxcor = max-pxcor or pycor = min-pycor or pycor = max-pycor)]
       set speedx random-float 1 - 0.5
       set speedy random-float 1 - 0.5
       set state 1 ; Actively moving by default
@@ -75,13 +70,24 @@ to set-bikes ;; Initialize bikes
   ]
 end
 
+to go
+  if any? peds = false [
+    set-peds
+  ]
+  if any? bikes = false [
+    set-bikes
+  ]
+  move
+  tick
+end
+
 ;; Move agents and detect collisions
 to move
   set time precision (time + dt) 5
   tick-advance 1
 
   ; Update positions and states for pedestrians
-  ask peds [
+   ask peds [
     if state = 1 [ ; Actively moving
       move-agent
       if random-float 1 < 0.01 [ ; Small chance to take a break
@@ -89,14 +95,15 @@ to move
         set break-timer random 10 + 5 ; Random break duration
         set color yellow
       ]
-    ] if state = 0 [ ; Taking a break
-      set break-timer break-timer - 1
+    ]
+    if state = 0 [ ; Taking a break
+      if break-timer > 0 [
+        set break-timer break-timer - 1  ; Count down break timer
+      ]
       if break-timer <= 0 [ ; Resume movement
         set state 1
         set color cyan
       ]
-    ] if state = -1 [ ; Finished, no action
-      set color gray
     ]
   ]
 
@@ -109,14 +116,15 @@ to move
         set break-timer random 10 + 5 ; Random break duration
         set color yellow
       ]
-    ] if state = 0 [ ; Taking a break
-      set break-timer break-timer - 1
+    ]
+    if state = 0 [ ; Taking a break
+      if break-timer > 0 [
+        set break-timer break-timer - 1  ; Count down break timer
+      ]
       if break-timer <= 0 [ ; Resume movement
         set state 1
         set color cyan
       ]
-    ] if state = -1 [ ; Finished, no action
-      set color gray
     ]
   ]
 end
@@ -155,24 +163,18 @@ to move-agent
 
   if polygon-id = 3 [
     ; Higher chance to stop temporarily
-    if random-float 1 < 0.2 [ ; 20% chance to pause
+    if random-float 1 < 0.5 [ ; 50% chance to pause
        set break-timer random 20 + 5   ;
     ]
     ]
   ]
          ]
   ; Update position
-  set xcor xcor + dx
-  set ycor ycor + dy
+  set xcor xcor + speedx * dt
+  set ycor ycor + speedy * dt
 
- ; Check if agent is out of study area and remove it
-  if not any? patches with [
-    any? gis:feature-list-of dataset [
-      [feature] ->
-      let polygon-id gis:property-value feature "ID"
-      (polygon-id = 1 or polygon-id = 2 or polygon-id = 3) and gis:intersects? self feature
-    ]
-  ] [
+  ; Check if agent is out of study area and remove it
+  if not is-in-study-area? patch-here [
     die
   ]
 
@@ -231,6 +233,19 @@ to c-bike [edge k]
   ]
 end
 
+to-report is-in-study-area? [candidate-patch]
+  let in-area? false
+  foreach gis:feature-list-of dataset [
+    [feature] ->
+    let polygon-id gis:property-value feature "ID"
+    if (polygon-id = 1 or polygon-id = 2 or polygon-id = 3) and gis:intersects? candidate-patch feature [
+      set in-area? true
+    ]
+  ]
+  report in-area?
+end
+
+
 
 
 to plot!
@@ -283,7 +298,7 @@ Nb-peds
 Nb-peds
 0
 224
-5.0
+224.0
 1
 1
 NIL
@@ -487,7 +502,7 @@ dt
 dt
 0
 1
-0.06
+0.05
 .01
 1
 NIL
@@ -609,7 +624,7 @@ Nb-Bikes
 Nb-Bikes
 0
 100
-5.0
+100.0
 1
 1
 NIL
