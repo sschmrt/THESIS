@@ -9,8 +9,8 @@ breed [peds ped]
 breed [bikes bike]
 
 globals [time mean-speed stddev-speed flow-cum polygons dataset wgs84-dataset core-area-patches study-area-patches collision-counter severity]
-peds-own [speedx speedy state break-timer]
-bikes-own [speedx speedy state break-timer]
+peds-own [speedx speedy state break-timer collision-severity collision-timer last-collision]
+bikes-own [speedx speedy state break-timer collision-severity collision-timer last-collision]
 ;; States 1 = Actively Moving 0 = Taking a break -1= Won't cross again
 
 to setup ;; Initialize the environment
@@ -63,6 +63,9 @@ to set-peds ;; Initialize pedestrians
       set speedy random-float 1 - 0.5
       set state 1 ; Actively moving by default
       set break-timer 0 ; Timer for taking a break
+       set collision-severity 0
+      set collision-timer 0
+      set last-collision nobody
     ]
   ]
 end
@@ -78,6 +81,9 @@ to set-bikes ;; Initialize bikes
       set speedy random-float 1 - 0.5
       set state 1 ; Actively moving by default
       set break-timer 0 ; Timer for taking a break
+      set collision-severity 0
+      set collision-timer 0
+      set last-collision nobody
     ]
   ]
 end
@@ -102,6 +108,10 @@ to move
    ask peds [
     if state = 1 [ ; Actively moving
       move-agent
+      detect-collision
+      if collision-severity > 0 [
+        handle-collision
+      ]
       if random-float 1 < 0.01 [ ; Small chance to take a break
         set state 0
         set break-timer random 10 + 5 ; Random break duration
@@ -123,6 +133,10 @@ to move
   ask bikes [
     if state = 1 [ ; Actively moving
       move-agent
+      detect-collision
+      if collision-severity > 0 [
+        handle-collision
+      ]
       if random-float 1 < 0.01 [ ; Small chance to take a break
         set state 0
         set break-timer random 10 + 5 ; Random break duration
@@ -184,6 +198,39 @@ if polygon-id = 2 or polygon-id = 3 [
     die
   ]
 
+end
+
+to detect-collision
+  if collision-severity = 0 [
+    let colliding-agent one-of other peds in-radius 0.01
+    if colliding-agent != nobody and colliding-agent != last-collision [
+      set last-collision colliding-agent
+      set collision-counter collision-counter + 1
+      let severity-level random 3 + 1
+      set collision-severity severity-level
+      set collision-timer severity-level * 10
+      if severity-level = 1 [
+        set color red - 2
+      ]
+      if severity-level = 2 [
+        set color red - 1
+      ]
+      if severity-level = 3 [
+        set color red
+      ]
+    ]
+  ]
+end
+
+to handle-collision
+  if collision-timer > 0 [
+    set collision-timer collision-timer - 1
+  ]
+  if collision-timer <= 0 [
+    set collision-severity 0
+    set color cyan
+    set last-collision nobody
+  ]
 end
 
 
