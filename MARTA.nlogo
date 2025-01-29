@@ -8,7 +8,7 @@ extensions [gis]
 breed [peds ped]
 breed [bikes bike]
 
-globals [time mean-speed stddev-speed flow-cum polygons dataset wgs84-dataset study-area-patches collision-counter severity]
+globals [time mean-speed stddev-speed flow-cum polygons dataset wgs84-dataset core-area-patches study-area-patches collision-counter severity]
 peds-own [speedx speedy state break-timer]
 bikes-own [speedx speedy state break-timer]
 ;; States 1 = Actively Moving 0 = Taking a break -1= Won't cross again
@@ -26,6 +26,7 @@ to setup ;; Initialize the environment
 
  ; Identify patches inside the polygons with ID 1, 2, or 3
   set study-area-patches patches with [is-in-study-area? self]
+  set core-area-patches patches with [is-core-area? self]
 
   ; Mark these patches for visualization and restrict agent movement
   ask study-area-patches [
@@ -46,6 +47,17 @@ to set-peds ;; Initialize pedestrians
       set shape "person"
       set color cyan
       set size 1
+        ;; 80% chance to spawn in the core area of polygon 1
+      if random-float 1 < 0.8 [
+        move-to one-of core-area-patches
+      ]
+      ;; 20% chance to spawn in polygon 2 or 3
+     if random-float 1 > 0.8 [
+        let valid-patches patches with [is-in-study-area? self and not is-core-area? self]
+        if any? valid-patches [
+          move-to one-of valid-patches
+        ]
+      ]
       move-to one-of patches with [is-in-study-area? self and (pxcor = min-pxcor or pxcor = max-pxcor or pycor = min-pycor or pycor = max-pycor)]; start from side of polygon
       set speedx random-float 1 - 0.5
       set speedy random-float 1 - 0.5
@@ -146,29 +158,23 @@ to move-agent
 
 
    if polygon-id = 1 [
-    ; Define angle for movement
-    if random-float 1 < 0.7 [  ; 70% chance to move left/right
-      ]
-      set heading one-of [150 330]  ; East or West
-    if random-float 1 > 0.7 [  ; 30% chance to move north/south
-      set heading one-of [60 240]  ; North or South
-      ]
-    ]
+    if is-core-area? patch-here [
+    set heading one-of [70 290]  ;; Move east or west
+  ]
+]
 
- if polygon-id = 2 [
-    ; Periodically stream in and out, with random angles
-    if random-float 1 < 0.2 [ ; 20% chance to stream
-      set heading random 360  ; Any direction
-    ]
-
-  if polygon-id = 3 [
+if polygon-id = 2 or polygon-id = 3 [
+  if is-core-area? patch-here [
+    set heading one-of [70 290]  ;; Align with main flow
+  ]
+]  if polygon-id = 3 [
     ; Higher chance to stop temporarily
     if random-float 1 < 0.5 [ ; 50% chance to pause
        set break-timer random 20 + 5   ;
     ]
     ]
   ]
-         ]
+
   ; Update position
   set xcor xcor + speedx * dt
   set ycor ycor + speedy * dt
@@ -244,6 +250,36 @@ to-report is-in-study-area? [candidate-patch]
   ]
   report in-area?
 end
+
+to-report is-core-area? [candidate-patch]
+  let in-core-area? false
+
+  let poly1 nobody
+  let poly2 nobody
+  let poly3 nobody
+
+  ; Identify the polygons from the dataset
+  foreach gis:feature-list-of dataset [
+    [feature] ->
+    let poly-id gis:property-value feature "ID"
+    if poly-id = 1 [ set poly1 feature ]
+    if poly-id = 2 [ set poly2 feature ]
+    if poly-id = 3 [ set poly3 feature ]
+  ]
+
+  ; Check if the patch is inside polygon 1
+  if poly1 != nobody and gis:intersects? candidate-patch poly1 [
+    ; Ensure the patch is NOT inside polygon 2 or 3
+    if (poly2 = nobody or not gis:intersects? candidate-patch poly2) and
+       (poly3 = nobody or not gis:intersects? candidate-patch poly3) [
+      set in-core-area? true
+    ]
+  ]
+
+  report in-core-area?
+end
+
+
 
 
 
