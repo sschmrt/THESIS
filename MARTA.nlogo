@@ -147,16 +147,23 @@ to move
         set color yellow
       ]
     ]
-    if state = 0 [ ; Taking a break
-      if break-timer > 0 [
-        set break-timer break-timer - 1  ; Count down break timer
-      ]
-      if break-timer <= 0 [ ; Resume movement
-        set state 1
-        set color cyan
-      ]
+  ; Check if the agent is taking a break
+  if state = 0 [
+    if break-timer > 0 [
+      set break-timer break-timer - 1  ; Count down break timer
+    ]
+    if break-timer <= 0 [ ; Resume movement
+      set state 1
+      set color cyan
     ]
   ]
+  ; Only update position if the agent is not taking a break
+  if state != 0 [
+    set xcor xcor + speedx * dt
+    set ycor ycor + speedy * dt
+  ]
+      ]
+
 end
 
 to move-agent
@@ -175,8 +182,8 @@ to move-agent
     let velocity read-from-string gis:property-value current-polygon "velocity"
 
   ; Adjust speed based on polygon's velocity
-    set speedx (speedx * velocity)
-    set speedy (speedy * velocity)
+    set speedx (speedx + velocity)
+    set speedy (speedy + velocity)
 
 
    if polygon-id = 4 [
@@ -214,17 +221,22 @@ to detect-collision
     if colliding-agent != nobody and colliding-agent != last-collision [
       set last-collision colliding-agent
       set collision-counter collision-counter + 1
-      let severity-level random 3 + 1
-      set collision-severity severity-level
-      set collision-timer severity-level * 10
-      if severity-level = 1 [
-        set color red - 2
-      ]
-      if severity-level = 2 [
-        set color red - 1
-      ]
-      if severity-level = 3 [
+       let random-value random-float 1
+      if random-value < 0.1 [ ; 10% chance for severity 3
+        set collision-severity 3
+        set break-timer 30
+        set state 0
         set color red
+      ] if random-value < 0.3 [ ; 20% chance for severity 2
+        set collision-severity 2
+        set break-timer 20
+        set state 0
+        set color red - 1
+      ] if random-value < 0.6 [ ; 30% chance for severity 1
+        set collision-severity 1
+        set break-timer 10
+        set state 0
+        set color red - 2
       ]
     ]
   ]
