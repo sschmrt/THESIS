@@ -45,7 +45,6 @@ to set-peds ;; Initialize pedestrians
       set shape "person"
       set color cyan
       set size 1
-      ]
 
       ; Spawn agents at the sides of the simulation
       move-to one-of patches with [is-in-study-area? self and (pxcor = min-pxcor or pxcor = max-pxcor or pycor = min-pycor or pycor = max-pycor)]; start from side of polygon
@@ -57,6 +56,7 @@ to set-peds ;; Initialize pedestrians
       set collision-timer 0
       set last-collision nobody
     ]
+  ]
 end
 
 to set-bikes ;; Initialize bikes
@@ -65,7 +65,6 @@ to set-bikes ;; Initialize bikes
       set shape "bike"
       set color magenta
       set size 1
-      ]
       ; Spawn agents at the sides of the simulation
       move-to one-of patches with [is-in-study-area? self and (pxcor = min-pxcor or pxcor = max-pxcor or pycor = min-pycor or pycor = max-pycor)]
       set speedx random-float 1 - 0.5
@@ -76,6 +75,7 @@ to set-bikes ;; Initialize bikes
       set collision-timer 0
       set last-collision nobody
     ]
+  ]
 end
 
 ;; Move agents and detect collisions
@@ -137,6 +137,7 @@ to move
     set xcor xcor + speedx * dt
     set ycor ycor + speedy * dt
   ]
+  update-stats-and-flow
       ]
 
 end
@@ -283,16 +284,51 @@ to-report is-in-study-area? [candidate-patch]
   report in-area?
 end
 
-;; Function to handle periodic increase in flow for ferry behaviour
-to periodic-increase-in-flow
-  if ticks mod 10 = 0 [
-    ask patches with [gis:property-value gis:location-of self "ID" = 2 or gis:property-value gis:location-of self "ID" = 3 or gis:property-value gis:location-of self "ID" = 4 or gis:property-value gis:location-of self "ID" = 5] [
-      ; Increase flow towards other polygons
-      move-to one-of neighbors
+to update-stats-and-flow
+  let peds-with-speed [ self ] of peds with [state > -1]
+  let bikes-with-speed [ self ] of bikes with [state > -1]
+
+  ; Update mean and standard deviation of speed for peds
+  if not empty? peds-with-speed [
+    let peds-agentset turtle-set peds-with-speed
+    set mean-speed mean-speed + mean [sqrt(speedx ^ 2 + speedy ^ 2)] of peds-agentset
+    if count peds-agentset > 1 [
+      set stddev-speed stddev-speed + sqrt(variance [sqrt(speedx ^ 2 + speedy ^ 2)] of peds-agentset)
     ]
   ]
-end
 
+  ; Update mean and standard deviation of speed for bikes
+  if not empty? bikes-with-speed [
+    let bikes-agentset turtle-set bikes-with-speed
+    set mean-speed mean-speed + mean [sqrt(speedx ^ 2 + speedy ^ 2)] of bikes-agentset
+    if count bikes-agentset > 1 [
+      set stddev-speed stddev-speed + sqrt(variance [sqrt(speedx ^ 2 + speedy ^ 2)] of bikes-agentset)
+    ]
+  ]
+
+  ; Update cumulative flow for peds crossing the center
+  ask peds with [
+    (xcor > 0 and xcor - speedx * dt <= 0) or
+    (xcor < 0 and xcor - speedx * dt >= 0) or
+    (ycor > 0 and ycor - speedy * dt <= 0) or
+    (ycor < 0 and ycor - speedy * dt >= 0)
+  ] [
+    set flow-cum flow-cum + 1
+  ]
+
+  ; Update cumulative flow for bikes crossing the center
+  ask bikes with [
+    (xcor > 0 and xcor - speedx * dt <= 0) or
+    (xcor < 0 and xcor - speedx * dt >= 0) or
+    (ycor > 0 and ycor - speedy * dt <= 0) or
+    (ycor < 0 and ycor - speedy * dt >= 0)
+  ] [
+    set flow-cum flow-cum + 1
+  ]
+
+
+  plot! ; Update the plots
+end
 
 
 
