@@ -50,8 +50,6 @@ to set-peds ;; Initialize pedestrians
       ; Spawn agents at the sides of the simulation
       move-to one-of patches with [is-in-study-area? self and (pxcor = min-pxcor or pxcor = max-pxcor or pycor = min-pycor or pycor = max-pycor)]; start from side of polygon
       set speedx random-float 1 - 0.5
-
-
       set speedy random-float 1 - 0.5
       set state 1 ; Actively moving by default
       set break-timer 0 ; Timer for taking a break
@@ -158,10 +156,19 @@ to move-agent
     let polygon-id gis:property-value current-polygon "ID"
     let velocity read-from-string gis:property-value current-polygon "velocity"
 
-  ; Adjust speed based on polygon's velocity
+    ; Additional rules for higher chance of stopping in polygons 6 and 9
+    if polygon-id = 6 or polygon-id = 9 [
+      if random-float 1 < 0.2 [ ; 20% chance to stop
+        set state 0
+        set break-timer random 10 + 5
+        set color yellow
+      ]
+    ]
+
+    ; Adjust speed based on polygon's velocity
     set speedx (speedx + velocity)
     set speedy (speedy + velocity)
-    ]
+  ]
 
   ; Update position
   set xcor xcor + speedx * dt
@@ -171,7 +178,6 @@ to move-agent
   if not is-in-study-area? patch-here [
     die
   ]
-
 end
 
 to detect-collision
@@ -277,6 +283,15 @@ to-report is-in-study-area? [candidate-patch]
   report in-area?
 end
 
+;; Function to handle periodic increase in flow for ferry behaviour
+to periodic-increase-in-flow
+  if ticks mod 10 = 0 [
+    ask patches with [gis:property-value gis:location-of self "ID" = 2 or gis:property-value gis:location-of self "ID" = 3 or gis:property-value gis:location-of self "ID" = 4 or gis:property-value gis:location-of self "ID" = 5] [
+      ; Increase flow towards other polygons
+      move-to one-of neighbors
+    ]
+  ]
+end
 
 
 
