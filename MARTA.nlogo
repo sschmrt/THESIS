@@ -18,22 +18,18 @@ to setup ;; Initialize the environment
   reset-ticks
 
   ; Load the GeoJSON dataset
-  set dataset gis:load-dataset "C:/Users/marta/Desktop/THESIS/CORESTUDYAREA.geojson"
+  set dataset gis:load-dataset "C:/Users/marta/Desktop/THESIS/Revised_Studyarea.geojson"
 
   ; Draw the dataset to visualize it
   gis:set-drawing-color red
   gis:draw dataset 0.1 ;
 
- ; Identify patches in study area and core area
+ ; Identify patches in study area
   set study-area-patches patches with [is-in-study-area? self]
-  set core-area-patches patches with [is-core-area? self]
 
  ; Mark these patches for visualization and restrict agent movement
   ask study-area-patches [
    set pcolor green
-  ]
-  ask core-area-patches [
-   set pcolor orange
   ]
   ; Initialize variables
     ;set Nb-peds
@@ -49,20 +45,13 @@ to set-peds ;; Initialize pedestrians
       set shape "person"
       set color cyan
       set size 1
-      ;; 80% chance to spawn in the core area of polygon 1
-      if random-float 1 < 0.8 [
-        move-to one-of core-area-patches
       ]
-      ;; 20% chance to spawn in polygon 2 or 3
-     if random-float 1 > 0.8 [
-        let valid-patches patches with [is-in-study-area? self and not is-core-area? self]
-        if any? valid-patches [
-          move-to one-of valid-patches
-        ]
-      ]
+
       ; Spawn agents at the sides of the simulation
       move-to one-of patches with [is-in-study-area? self and (pxcor = min-pxcor or pxcor = max-pxcor or pycor = min-pycor or pycor = max-pycor)]; start from side of polygon
       set speedx random-float 1 - 0.5
+
+
       set speedy random-float 1 - 0.5
       set state 1 ; Actively moving by default
       set break-timer 0 ; Timer for taking a break
@@ -70,7 +59,6 @@ to set-peds ;; Initialize pedestrians
       set collision-timer 0
       set last-collision nobody
     ]
-  ]
 end
 
 to set-bikes ;; Initialize bikes
@@ -79,16 +67,6 @@ to set-bikes ;; Initialize bikes
       set shape "bike"
       set color magenta
       set size 1
-      ;; 80% chance to spawn in the core area of polygon 1
-      if random-float 1 < 0.8 [
-        move-to one-of core-area-patches
-      ]
-      ;; 20% chance to spawn in polygon 2 or 3
-     if random-float 1 > 0.8 [
-        let valid-patches patches with [is-in-study-area? self and not is-core-area? self]
-        if any? valid-patches [
-          move-to one-of valid-patches
-        ]
       ]
       ; Spawn agents at the sides of the simulation
       move-to one-of patches with [is-in-study-area? self and (pxcor = min-pxcor or pxcor = max-pxcor or pycor = min-pycor or pycor = max-pycor)]
@@ -100,7 +78,6 @@ to set-bikes ;; Initialize bikes
       set collision-timer 0
       set last-collision nobody
     ]
-  ]
 end
 
 ;; Move agents and detect collisions
@@ -184,25 +161,7 @@ to move-agent
   ; Adjust speed based on polygon's velocity
     set speedx (speedx + velocity)
     set speedy (speedy + velocity)
-
-
-   if polygon-id = 4 [
-    if is-core-area? patch-here [
-    set heading one-of [70 290]  ;; Move east or west
-  ]
-]
-
-if polygon-id = 2 or polygon-id = 3 [
-  if is-core-area? patch-here [
-    set heading one-of [70 290]  ;; Align with main flow
-  ]
-]  if polygon-id = 3 [
-    ; Higher chance to stop temporarily
-    if random-float 1 < 0.5 [ ; 50% chance to pause
-       set break-timer random 20 + 5   ;
     ]
-    ]
-  ]
 
   ; Update position
   set xcor xcor + speedx * dt
@@ -311,41 +270,11 @@ to-report is-in-study-area? [candidate-patch]
   foreach gis:feature-list-of dataset [
     [feature] ->
     let polygon-id gis:property-value feature "ID"
-    if (polygon-id = 1 or polygon-id = 2 or polygon-id = 3 or polygon-id = 4) and gis:intersects? candidate-patch feature [
+    if (polygon-id = 1 or polygon-id = 2 or polygon-id = 3 or polygon-id = 4 or polygon-id = 5  or polygon-id = 6 or polygon-id = 7 or polygon-id = 8 or polygon-id = 9) and gis:intersects? candidate-patch feature [
       set in-area? true
     ]
   ]
   report in-area?
-end
-
-to-report is-core-area? [candidate-patch]
-  let in-core-area? false
-
-  let poly1 nobody
-  let poly2 nobody
-  let poly3 nobody
-  let poly4 nobody
-
-  ; Identify the polygons from the dataset
-  foreach gis:feature-list-of dataset [
-    [feature] ->
-    let poly-id gis:property-value feature "ID"
-    if poly-id = 1 [ set poly1 feature ]
-    if poly-id = 2 [ set poly2 feature ]
-    if poly-id = 3 [ set poly3 feature ]
-    if poly-id = 4 [ set poly4 feature ]
-  ]
-
-  ; Check if the patch is inside polygon 1
-  if poly4 != nobody and gis:intersects? candidate-patch poly4 [
-    ; Ensure the patch is NOT inside polygon 2 or 3
-    if (poly2 = nobody or not gis:intersects? candidate-patch poly2) and
-       (poly3 = nobody or not gis:intersects? candidate-patch poly3) [
-      set in-core-area? true
-    ]
-  ]
-
-  report in-core-area?
 end
 
 
