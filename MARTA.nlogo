@@ -159,16 +159,41 @@ to move-agent
 
     ; Additional rules for higher chance of stopping in polygons 6 and 9
     if polygon-id = 6 or polygon-id = 9 [
-      if random-float 1 < 0.2 [ ; 20% chance to stop
+      if random-float 1 < 0.5 [ ; 50% chance to stop
         set state 0
         set break-timer random 10 + 5
         set color yellow
       ]
     ]
+      if polygon-id = 9 [
+      ; Define angle for movement
+      if random-float 1 < 0.9 [ ; 90% chance to move left/right
+        set heading one-of [150 330] ; East or West
+      ]
+      if random-float 1 > 0.1 [ ; 10% chance to move north/south
+        set heading one-of [60 240] ; North or South
+      ]
+    ]
 
-    ; Adjust speed based on polygon's velocity
-    set speedx (speedx + velocity)
-    set speedy (speedy + velocity)
+    if polygon-id = 7 or polygon-id = 8 [
+      ; Periodically stream in and out, with random angles
+      if random-float 1 < 0.2 [ ; 20% chance to stream
+        set heading random 360 ; Any direction
+      ]
+    ]
+    if polygon-id = 2 or polygon-id = 3 or polygon-id = 4 or polygon-id = 5 [
+      ; Periodically stream in and out, with random angles
+      if random-float 1 < 0.7 [ ; 70% chance to horizontal;
+        set heading one-of [150 330] ; East or West
+      ]
+    ]
+
+    if polygon-id = 8 or polygon-id = 6 [
+      ; Higher chance to stop temporarily
+      if random-float 1 < 0.5 [ ; 50% chance to pause
+        set break-timer random 20 + 5 ; Random break duration
+      ]
+    ]
   ]
 
   ; Update position
