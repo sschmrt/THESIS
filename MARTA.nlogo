@@ -9,8 +9,8 @@ breed [peds ped]
 breed [bikes bike]
 
 globals [time mean-speed stddev-speed flow-cum polygons dataset wgs84-dataset core-area-patches study-area-patches collision-counter severity]
-peds-own [speedx speedy state break-timer collision-severity collision-timer last-collision]
-bikes-own [speedx speedy state break-timer collision-severity collision-timer last-collision]
+peds-own [speedx speedy state break-timer collision-severity collision-timer last-collision speed]
+bikes-own [speedx speedy state break-timer collision-severity collision-timer last-collision speed]
 ;; States 1 = Actively Moving 0 = Taking a break -1= Won't cross again
 
 to setup ;; Initialize the environment
@@ -45,11 +45,12 @@ to set-peds ;; Initialize pedestrians
       set shape "person"
       set color cyan
       set size 1
+      set speed (2.5 + random-float (7.5 - 2.5)) / 3.6  ; Convert km/h to NetLogo units per tick
 
       ; Spawn agents at the sides of the simulation
       move-to one-of patches with [is-in-study-area? self and (pxcor = min-pxcor or pxcor = max-pxcor or pycor = min-pycor or pycor = max-pycor)]; start from side of polygon
-      set speedx random-float 1 - 0.5
-      set speedy random-float 1 - 0.5
+       set speedx speed * cos heading
+      set speedy speed * sin heading
       set state 1 ; Actively moving by default
       set break-timer 0 ; Timer for taking a break
       set collision-severity 0
@@ -65,10 +66,11 @@ to set-bikes ;; Initialize bikes
       set shape "bike"
       set color magenta
       set size 1
+      set speed (5 + random-float (22 - 5)) / 3.6  ; Convert km/h to NetLogo units per tick
       ; Spawn agents at the sides of the simulation
       move-to one-of patches with [is-in-study-area? self and (pxcor = min-pxcor or pxcor = max-pxcor or pycor = min-pycor or pycor = max-pycor)]
-      set speedx random-float 1 - 0.5
-      set speedy random-float 1 - 0.5
+       set speedx speed * cos heading
+      set speedy speed * sin heading
       set state 1 ; Actively moving by default
       set break-timer 0 ; Timer for taking a break
       set collision-severity 0
@@ -401,10 +403,10 @@ Ticks
 30.0
 
 SLIDER
-221
-77
-324
-110
+11
+10
+114
+43
 Nb-peds
 Nb-peds
 0
@@ -501,17 +503,6 @@ V0
 1
 NIL
 HORIZONTAL
-
-MONITOR
-177
-20
-235
-65
-Time
-time
-17
-1
-11
 
 MONITOR
 300
@@ -727,15 +718,15 @@ NIL
 HORIZONTAL
 
 SLIDER
-23
-108
-195
-141
+8
+54
+118
+87
 Nb-Bikes
 Nb-Bikes
 0
-100
-100.0
+300
+203.0
 1
 1
 NIL
