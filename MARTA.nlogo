@@ -8,7 +8,7 @@ extensions [gis]
 breed [peds ped]
 breed [bikes bike]
 
-globals [time mean-speed stddev-speed flow-cum polygons dataset wgs84-dataset core-area-patches study-area-patches collision-counter severity]
+globals [time mean-speed stddev-speed flow-cum polygons dataset wgs84-dataset core-area-patches  d study-area-patches collision-counter severity]
 peds-own [speedx speedy state break-timer collision-severity collision-timer last-collision speed]
 bikes-own [speedx speedy state break-timer collision-severity collision-timer last-collision speed]
 ;; States 1 = Actively Moving 0 = Taking a break -1= Won't cross again
@@ -86,7 +86,27 @@ to move
   tick-advance 1
 
   ; Update positions and states for pedestrians
-   ask peds [
+  ask peds [
+    let repx 0 ; Initialize the repulsive force in the x direction
+    let repy 0 ; Initialize the repulsive force in the y direction
+    let hd hd1 ; Set the desired direction (hd) to hd1 by default
+    if state = 2 [set hd hd2] ; If the pedestrian is in state 2, change the desired direction to hd2
+    let h hd1 ; Initialize the current heading (h) to hd1
+    if not (speedx * speedy = 0) [set h atan speedx speedy] ; If the pedestrian's speed is not zero, set the heading (h) based on the current speed
+
+    ; Calculate the repulsive forces from nearby pedestrians
+    ask peds in-radius (2 * D) with [not (self = myself)] [
+  let dist distance myself
+  if dist > 0 [ ; Ensure distance is nonzero before using towards
+    set repx repx + A * exp((1 - d) / D) * sin(towards myself) * (1 - cos(towards myself - h))
+    set repy repy + A * exp((1 - d) / D) * cos(towards myself) * (1 - cos(towards myself - h))
+  ]
+    ]
+
+    ; Update speed with social force adjustments
+    set speedx speedx + dt * (repx + (V0 * sin hd - speedx) / Tr)
+    set speedy speedy + dt * (repy + (V0 * cos hd - speedy) / Tr)
+
     if state = 1 [ ; Actively moving
       move-agent
       detect-collision
@@ -112,6 +132,25 @@ to move
 
   ; Update positions and states for bikes
   ask bikes [
+    let repx 0 ; Initialize the repulsive force in the x direction
+    let repy 0 ; Initialize the repulsive force in the y direction
+    let hd hd1 ; Set the desired direction (hd) to hd1 by default
+    if state = 2 [set hd hd2] ; If the bike is in state 2, change the desired direction to hd2
+    let h hd1 ; Initialize the current heading (h) to hd1
+    if not (speedx * speedy = 0) [set h atan speedx speedy] ; If the bike's speed is not zero, set the heading (h) based on the current speed
+
+    ; Calculate the repulsive forces from nearby bikes
+   ask bikes in-radius (2 * D) with [not (self = myself)] [
+  let dist distance myself
+  if dist > 0 [ ; Ensure distance is nonzero before using towards
+    set repx repx + A * exp((1 - d) / D) * sin(towards myself) * (1 - cos(towards myself - h))
+    set repy repy + A * exp((1 - d) / D) * cos(towards myself) * (1 - cos(towards myself - h))
+  ]
+]
+    ; Update speed with social force adjustments
+    set speedx speedx + dt * (repx + (V0 * sin hd - speedx) / Tr)
+    set speedy speedy + dt * (repy + (V0 * cos hd - speedy) / Tr)
+
     if state = 1 [ ; Actively moving
       move-agent
       detect-collision
@@ -124,24 +163,17 @@ to move
         set color yellow
       ]
     ]
-  ; Check if the agent is taking a break
-  if state = 0 [
-    if break-timer > 0 [
-      set break-timer break-timer - 1  ; Count down break timer
+    if state = 0 [ ; Taking a break
+      if break-timer > 0 [
+        set break-timer break-timer - 1  ; Count down break timer
+      ]
+      if break-timer <= 0 [ ; Resume movement
+        set state 1
+        set color cyan
+      ]
     ]
-    if break-timer <= 0 [ ; Resume movement
-      set state 1
-      set color cyan
-    ]
-  ]
-  ; Only update position if the agent is not taking a break
-  if state != 0 [
-    set xcor xcor + speedx * dt
-    set ycor ycor + speedy * dt
   ]
   update-stats-and-flow
-      ]
-
 end
 
 to move-agent
@@ -610,21 +642,6 @@ dt
 NIL
 HORIZONTAL
 
-SLIDER
-329
-185
-421
-218
-D
-D
-0.1
-5
-1.5
-.1
-1
-NIL
-HORIZONTAL
-
 BUTTON
 160
 167
@@ -666,7 +683,7 @@ hd1
 hd1
 0
 360
-100.0
+105.0
 5
 1
 degree
@@ -696,7 +713,7 @@ hd2
 hd2
 0
 360
-190.0
+195.0
 5
 1
 degree
