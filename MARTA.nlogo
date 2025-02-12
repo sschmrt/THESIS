@@ -1,7 +1,7 @@
 ; Marta Schwarz
 ; Msc Urban Environmental Management
 ; Master Thesis
-; Supervisor Arendt Ligtenberg
+; Supervisor Arend Ligtenberg
 
 extensions [gis nw]
 
@@ -40,7 +40,6 @@ to setup ;; Initialize the environment
     set dt 0.05
     set-peds
     set-bikes
-    build-visibility-graph
 end
 
 to define-obstacles
@@ -63,45 +62,7 @@ to define-obstacles
     ]
 end
 
-to build-visibility-graph
-  nw:set-context (turtle-set peds) (link-set)
 
-  ask peds [
-    let my-position self
-    let visible-nodes []
-
-    ;; Check for direct visibility to other waypoints
-    ask peds with [self != my-position] [
-      if not any? patches-on line-of-sight my-position self [
-        set visible-nodes lput self visible-nodes
-      ]
-    ]
-
-    ;; Check for direct visibility to corners of obstacles
-    ask patches with [obstacle?] [
-      if not any? patches-on line-of-sight my-position self [
-        set visible-nodes lput self visible-nodes
-      ]
-    ]
-
-    ;; Create links in visibility graph
-    foreach visible-nodes [
-      nw:link-to self
-    ]
-  ]
-end
-
-to compute-shortest-path
-  let goal one-of patches with [goal?]  ;; Define goal position
-
-  ask peds [
-    let my-path nw:path-to goal
-    if my-path != nobody [
-      set path-to-goal my-path
-      set current-target first my-path  ;; Set next target
-    ]
-  ]
-end
 
 
 
@@ -156,7 +117,6 @@ to move
     let repx 0 ; Initialize the repulsive force in the x direction
     let repy 0 ; Initialize the repulsive force in the y direction
     let hd hd1 ; Set the desired direction (hd) to hd1 by default
-    if state = 2 [set hd hd2] ; If the pedestrian is in state 2, change the desired direction to hd2
     let h hd1 ; Initialize the current heading (h) to hd1
     if not (speedx * speedy = 0) [set h atan speedx speedy] ; If the pedestrian's speed is not zero, set the heading (h) based on the current speed
 
@@ -173,17 +133,15 @@ to move
     set speedx speedx + dt * (repx + (V0 * sin hd - speedx) / Tr)
     set speedy speedy + dt * (repy + (V0 * cos hd - speedy) / Tr)
 
-    if state = 1 [ ; Actively moving
-      move-agent
-      detect-collision
-      if collision-severity > 0 [
-        handle-collision
-      ]
-      if random-float 1 < 0.01 [ ; Small chance to take a break
-        set state 0
-        set break-timer random 10 + 5 ; Random break duration
-        set color yellow
-      ]
+  ;; Existing logic for collisions and breaks
+    detect-collision
+    if collision-severity > 0 [
+      handle-collision
+    ]
+    if random-float 1 < 0.01 [ ; Small chance to take a break
+      set state 0
+      set break-timer random 10 + 5 ; Random break duration
+      set color yellow
     ]
     if state = 0 [ ; Taking a break
       if break-timer > 0 [
@@ -201,7 +159,6 @@ to move
     let repx 0 ; Initialize the repulsive force in the x direction
     let repy 0 ; Initialize the repulsive force in the y direction
     let hd hd1 ; Set the desired direction (hd) to hd1 by default
-    if state = 2 [set hd hd2] ; If the bike is in state 2, change the desired direction to hd2
     let h hd1 ; Initialize the current heading (h) to hd1
     if not (speedx * speedy = 0) [set h atan speedx speedy] ; If the bike's speed is not zero, set the heading (h) based on the current speed
 
@@ -217,17 +174,15 @@ to move
     set speedx speedx + dt * (repx + (V0 * sin hd - speedx) / Tr)
     set speedy speedy + dt * (repy + (V0 * cos hd - speedy) / Tr)
 
-    if state = 1 [ ; Actively moving
-      move-agent
-      detect-collision
-      if collision-severity > 0 [
-        handle-collision
-      ]
-      if random-float 1 < 0.01 [ ; Small chance to take a break
-        set state 0
-        set break-timer random 10 + 5 ; Random break duration
-        set color yellow
-      ]
+   ; Existing logic for collisions and breaks
+    detect-collision
+    if collision-severity > 0 [
+      handle-collision
+    ]
+    if random-float 1 < 0.01 [ ; Small chance to take a break
+      set state 0
+      set break-timer random 10 + 5 ; Random break duration
+      set color yellow
     ]
     if state = 0 [ ; Taking a break
       if break-timer > 0 [
@@ -239,6 +194,7 @@ to move
       ]
     ]
   ]
+
   update-stats-and-flow
 end
 
@@ -343,7 +299,6 @@ to handle-collision
     set last-collision nobody
   ]
 end
-
 
 
 
