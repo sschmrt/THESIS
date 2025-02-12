@@ -3,22 +3,24 @@
 ; Master Thesis
 ; Supervisor Arendt Ligtenberg
 
-extensions [gis]
+extensions [gis nw]
 
 breed [peds ped]
 breed [bikes bike]
 
-globals [time mean-speed stddev-speed flow-cum polygons dataset wgs84-dataset core-area-patches  d study-area-patches collision-counter severity]
-peds-own [speedx speedy state break-timer collision-severity collision-timer last-collision speed]
+globals [time mean-speed stddev-speed flow-cum polygons dataset wgs84-dataset core-area-patches  d study-area-patches collision-counter severity visibility-graph]
+peds-own [speedx speedy state break-timer collision-severity collision-timer last-collision speed path-to-goal current-target]
 bikes-own [speedx speedy state break-timer collision-severity collision-timer last-collision speed]
+patches-own [ obstacle? ]
 ;; States 1 = Actively Moving 0 = Taking a break -1= Won't cross again
+
 
 to setup ;; Initialize the environment
   clear-all
   reset-ticks
 
   ; Load the GeoJSON dataset
-  set dataset gis:load-dataset "C:/Users/marta/Desktop/THESIS/Revised_Studyarea.geojson"
+  set dataset gis:load-dataset "C:/Users/marta/Desktop/THESIS/Pillars_SA.geojson"
 
   ; Draw the dataset to visualize it
   gis:set-drawing-color red
@@ -28,6 +30,7 @@ to setup ;; Initialize the environment
   set study-area-patches patches with [is-in-study-area? self]
 
  ; Mark these patches for visualization and restrict agent movement
+  define-obstacles
   ask study-area-patches [
    set pcolor green
   ]
@@ -37,7 +40,70 @@ to setup ;; Initialize the environment
     set dt 0.05
     set-peds
     set-bikes
+    build-visibility-graph
 end
+
+to define-obstacles
+  ask patches [
+    let my-polygon nobody
+    foreach gis:feature-list-of dataset [
+      [feature] ->
+      if gis:intersects? self feature [
+        set my-polygon feature
+      ]
+    ]
+    if my-polygon != nobody [
+      let polygon-id gis:property-value my-polygon "ID"
+      if polygon-id = 999 [
+        set obstacle? true
+        set pcolor black  ;; Mark obstacles visually
+      ]
+      ]
+
+    ]
+end
+
+to build-visibility-graph
+  nw:set-context (turtle-set peds) (link-set)
+
+  ask peds [
+    let my-position self
+    let visible-nodes []
+
+    ;; Check for direct visibility to other waypoints
+    ask peds with [self != my-position] [
+      if not any? patches-on line-of-sight my-position self [
+        set visible-nodes lput self visible-nodes
+      ]
+    ]
+
+    ;; Check for direct visibility to corners of obstacles
+    ask patches with [obstacle?] [
+      if not any? patches-on line-of-sight my-position self [
+        set visible-nodes lput self visible-nodes
+      ]
+    ]
+
+    ;; Create links in visibility graph
+    foreach visible-nodes [
+      nw:link-to self
+    ]
+  ]
+end
+
+to compute-shortest-path
+  let goal one-of patches with [goal?]  ;; Define goal position
+
+  ask peds [
+    let my-path nw:path-to goal
+    if my-path != nobody [
+      set path-to-goal my-path
+      set current-target first my-path  ;; Set next target
+    ]
+  ]
+end
+
+
 
 to set-peds ;; Initialize pedestrians
   repeat Nb-peds [
