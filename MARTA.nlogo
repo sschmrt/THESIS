@@ -8,9 +8,9 @@ extensions [gis nw]
 breed [peds ped]
 breed [bikes bike]
 
-globals [time mean-speed stddev-speed flow-cum polygons dataset wgs84-dataset core-area-patches  d study-area-patches collision-counter severity visibility-graph]
-peds-own [speedx speedy state break-timer collision-severity collision-timer last-collision speed path-to-goal current-target]
-bikes-own [speedx speedy state break-timer collision-severity collision-timer last-collision speed]
+globals [time mean-speed stddev-speed flow-cum polygons dataset wgs84-dataset core-area-patches  d study-area-patches]
+peds-own [speedx speedy state break-timer speed current-target]
+bikes-own [speedx speedy state break-timer speed]
 patches-own [ obstacle? ]
 ;; States 1 = Actively Moving 0 = Taking a break -1= Won't cross again
 
@@ -30,7 +30,7 @@ to setup ;; Initialize the environment
   set study-area-patches patches with [is-in-study-area? self]
 
  ; Mark these patches for visualization and restrict agent movement
-  define-obstacles
+  ;define-obstacles
   ask study-area-patches [
    set pcolor green
   ]
@@ -42,25 +42,25 @@ to setup ;; Initialize the environment
     set-bikes
 end
 
-to define-obstacles
-  ask patches [
-    let my-polygon nobody
-    foreach gis:feature-list-of dataset [
-      [feature] ->
-      if gis:intersects? self feature [
-        set my-polygon feature
-      ]
-    ]
-    if my-polygon != nobody [
-      let polygon-id gis:property-value my-polygon "ID"
-      if polygon-id = 999 [
-        set obstacle? true
-        set pcolor black  ;; Mark obstacles visually
-      ]
-      ]
+;to define-obstacles
+ ; ask patches [
+  ;  let my-polygon nobody
+  ;  foreach gis:feature-list-of dataset [
+     ; [feature] ->
+    ;  if gis:intersects? self feature [
+     ;   set my-polygon feature
+   ;   ]
+   ; ]
+ ;   if my-polygon != nobody [
+    ;  let polygon-id gis:property-value my-polygon "ID"
+      ;if polygon-id = 999 [
+       ; set obstacle? true
+      ;  set pcolor black  ;; Mark obstacles visually
+     ; ]
+     ; ]
 
-    ]
-end
+  ;  ]
+;end
 
 
 
@@ -69,20 +69,15 @@ end
 to set-peds ;; Initialize pedestrians
   repeat Nb-peds [
     create-peds 1 [
-      set shape "person"
+      set shape "circle"
       set color cyan
-      set size 1
-      set speed (2.5 + random-float (7.5 - 2.5)) / 3.6  ; Convert km/h to NetLogo units per tick
+      set size 0.3
 
       ; Spawn agents at the sides of the simulation
       move-to one-of patches with [is-in-study-area? self and (pxcor = min-pxcor or pxcor = max-pxcor or pycor = min-pycor or pycor = max-pycor)]; start from side of polygon
-       set speedx speed * cos heading
-      set speedy speed * sin heading
+      set speed (2.5 + random-float (7.5 - 2.5)) / 3.6  ; Convert km/h to NetLogo units per tick
       set state 1 ; Actively moving by default
       set break-timer 0 ; Timer for taking a break
-      set collision-severity 0
-      set collision-timer 0
-      set last-collision nobody
     ]
   ]
 end
@@ -90,24 +85,19 @@ end
 to set-bikes ;; Initialize bikes
   repeat Nb-bikes [
     create-bikes 1 [
-      set shape "bike"
+      set shape "circle"
       set color magenta
-      set size 1
-      set speed (5 + random-float (22 - 5)) / 3.6  ; Convert km/h to NetLogo units per tick
+      set size 0.45
       ; Spawn agents at the sides of the simulation
       move-to one-of patches with [is-in-study-area? self and (pxcor = min-pxcor or pxcor = max-pxcor or pycor = min-pycor or pycor = max-pycor)]
-       set speedx speed * cos heading
-      set speedy speed * sin heading
+      set speed (5 + random-float (22 - 5)) / 3.6  ; Convert km/h to NetLogo units per tick
       set state 1 ; Actively moving by default
       set break-timer 0 ; Timer for taking a break
-      set collision-severity 0
-      set collision-timer 0
-      set last-collision nobody
     ]
   ]
 end
 
-;; Move agents and detect collisions
+;; Move agents
 to move
   set time precision (time + dt) 5
   tick-advance 1
@@ -132,26 +122,6 @@ to move
     ; Update speed with social force adjustments
     set speedx speedx + dt * (repx + (V0 * sin hd - speedx) / Tr)
     set speedy speedy + dt * (repy + (V0 * cos hd - speedy) / Tr)
-
-  ;; Existing logic for collisions and breaks
-    detect-collision
-    if collision-severity > 0 [
-      handle-collision
-    ]
-    if random-float 1 < 0.01 [ ; Small chance to take a break
-      set state 0
-      set break-timer random 10 + 5 ; Random break duration
-      set color yellow
-    ]
-    if state = 0 [ ; Taking a break
-      if break-timer > 0 [
-        set break-timer break-timer - 1  ; Count down break timer
-      ]
-      if break-timer <= 0 [ ; Resume movement
-        set state 1
-        set color cyan
-      ]
-    ]
   ]
 
   ; Update positions and states for bikes
@@ -174,26 +144,7 @@ to move
     set speedx speedx + dt * (repx + (V0 * sin hd - speedx) / Tr)
     set speedy speedy + dt * (repy + (V0 * cos hd - speedy) / Tr)
 
-   ; Existing logic for collisions and breaks
-    detect-collision
-    if collision-severity > 0 [
-      handle-collision
     ]
-    if random-float 1 < 0.01 [ ; Small chance to take a break
-      set state 0
-      set break-timer random 10 + 5 ; Random break duration
-      set color yellow
-    ]
-    if state = 0 [ ; Taking a break
-      if break-timer > 0 [
-        set break-timer break-timer - 1  ; Count down break timer
-      ]
-      if break-timer <= 0 [ ; Resume movement
-        set state 1
-        set color cyan
-      ]
-    ]
-  ]
 
   update-stats-and-flow
 end
@@ -262,95 +213,7 @@ to move-agent
   ]
 end
 
-to detect-collision
-  if collision-severity = 0 [
-    let colliding-agent one-of other peds in-radius 0.01
-    if colliding-agent != nobody and colliding-agent != last-collision [
-      set last-collision colliding-agent
-      set collision-counter collision-counter + 1
-       let random-value random-float 1
-      if random-value < 0.1 [ ; 10% chance for severity 3
-        set collision-severity 3
-        set break-timer 30
-        set state 0
-        set color red
-      ] if random-value < 0.3 [ ; 20% chance for severity 2
-        set collision-severity 2
-        set break-timer 20
-        set state 0
-        set color red - 1
-      ] if random-value < 0.6 [ ; 30% chance for severity 1
-        set collision-severity 1
-        set break-timer 10
-        set state 0
-        set color red - 2
-      ]
-    ]
-  ]
-end
 
-to handle-collision
-  if collision-timer > 0 [
-    set collision-timer collision-timer - 1
-  ]
-  if collision-timer <= 0 [
-    set collision-severity 0
-    set color cyan
-    set last-collision nobody
-  ]
-end
-
-
-
-to c-ped [edge k]
-  if edge = 0 [
-    ; Find patches at the edges of the world
-    let suitable-patches patches with [pxcor = min-pxcor or pxcor = max-pxcor or pycor = min-pycor or pycor = max-pycor]
-    if any? suitable-patches [
-      ; Randomly select one of the suitable patches
-      let chosen-patch one-of suitable-patches
-      ; Create a new pedestrian
-      create-peds 1 [
-        set shape "person" ; Set the shape of the pedestrian
-        set color cyan ; Set the color of the pedestrian
-        set size 1 ; Set the size of the pedestrian
-        move-to chosen-patch ; Move the pedestrian to the chosen patch
-        set speedx random-float 1 - 0.5 ; Assign a random speed in the x direction
-        set speedy random-float 1 - 0.5 ; Assign a random speed in the y direction
-        set state 2
-        if k = -1 [
-          set color white ; Change color if state is -1
-          set state -1 ; Set state to -1
-        ]
-      ]
-    ]
-  ]
-end
-
-to c-bike [edge k]
-  if edge = 0 [
-    ; Find patches at the edges of the world
-    let suitable-patches patches with [pxcor = min-pxcor or pxcor = max-pxcor or pycor = min-pycor or pycor = max-pycor]
-    if any? suitable-patches [
-      ; Randomly select one of the suitable patches
-      let chosen-patch one-of suitable-patches
-      ; Create a new bike
-      create-bikes 1 [
-        set shape "bike" ; Set the shape of the bike
-        set size 2 ; Set the size of the bike
-        set color magenta ; Set the color of the bike
-        move-to chosen-patch ; Move the bike to the chosen patch
-        set speedx random-float 1 - 0.5 ; Assign a random speed in the x direction
-        set speedy random-float 1 - 0.5 ; Assign a random speed in the y direction
-        set state -1 - 2
-        if k = -1 [
-          set color white ; Change color if state is -1
-          set state -1 ; Set state to -1
-        ]
-      ]
-    ]
-  ]
-end
 
 to-report is-in-study-area? [candidate-patch]
   let in-area? false
