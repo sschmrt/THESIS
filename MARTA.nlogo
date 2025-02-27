@@ -75,7 +75,6 @@ to set-peds ;; Initialize pedestrians
 
       ; Spawn agents at the sides of the simulation
       move-to one-of patches with [is-in-study-area? self and (pxcor = min-pxcor or pxcor = max-pxcor or pycor = min-pycor or pycor = max-pycor)]; start from side of polygon
-      set speed (2.5 + random-float (7.5 - 2.5)) / 3.6  ; Convert km/h to NetLogo units per tick
       set state 1 ; Actively moving by default
       set break-timer 0 ; Timer for taking a break
     ]
@@ -90,7 +89,6 @@ to set-bikes ;; Initialize bikes
       set size 0.45
       ; Spawn agents at the sides of the simulation
       move-to one-of patches with [is-in-study-area? self and (pxcor = min-pxcor or pxcor = max-pxcor or pycor = min-pycor or pycor = max-pycor)]
-      set speed (5 + random-float (22 - 5)) / 3.6  ; Convert km/h to NetLogo units per tick
       set state 1 ; Actively moving by default
       set break-timer 0 ; Timer for taking a break
     ]
@@ -125,26 +123,34 @@ to move
   ]
 
   ; Update positions and states for bikes
-  ask bikes [
-    let repx 0 ; Initialize the repulsive force in the x direction
-    let repy 0 ; Initialize the repulsive force in the y direction
-    let hd hd1 ; Set the desired direction (hd) to hd1 by default
-    let h hd1 ; Initialize the current heading (h) to hd1
-    if not (speedx * speedy = 0) [set h atan speedx speedy] ; If the bike's speed is not zero, set the heading (h) based on the current speed
+ ask bikes [
+  let repx 0   ;; Repulsion force in X direction
+  let repy 0   ;; Repulsion force in Y direction
+  let hd hd1   ;; Desired movement direction
+  let h hd1    ;; Current heading
 
-    ; Calculate the repulsive forces from nearby bikes
-   ask bikes in-radius (2 * D) with [not (self = myself)] [
-  let dist distance myself
-  if dist > 0 [ ; Ensure distance is nonzero before using towards
-    set repx repx + A * exp((1 - d) / D) * sin(towards myself) * (1 - cos(towards myself - h))
-    set repy repy + A * exp((1 - d) / D) * cos(towards myself) * (1 - cos(towards myself - h))
+  ;; Ensure the bike does not change direction abruptly
+  if not (speedx * speedy = 0) [
+    set h atan speedx speedy
   ]
-]
-    ; Update speed with social force adjustments
-    set speedx speedx + dt * (repx + (V0 * sin hd - speedx) / Tr)
-    set speedy speedy + dt * (repy + (V0 * cos hd - speedy) / Tr)
 
+  ;; Larger perception radius for bikes
+  ask bikes in-radius (3 * D) with [not (self = myself)] [
+    let dist distance myself
+    if dist > 0 [
+      set repx repx + A * exp((1 - d) / D) * sin(towards myself) * (1 - 0.5 * cos(towards myself - h))  ;; Less abrupt avoidance
+      set repy repy + A * exp((1 - d) / D) * cos(towards myself) * (1 - 0.5 * cos(towards myself - h))
     ]
+  ]
+
+  ;; Adjust speed while preserving momentum
+  set speedx speedx + dt * (repx + (V0 * sin hd - speedx) / (Tr * 2))  ;; Bikes take longer to adjust
+  set speedy speedy + dt * (repy + (V0 * cos hd - speedy) / (Tr * 2))
+
+  ;; Prevent abrupt direction changes using angular inertia
+  let new-heading atan speedx speedy
+  set heading heading + (new-heading - heading) * 0.2  ;; Gradual turn adjustment
+]
 
   update-stats-and-flow
 end
@@ -632,17 +638,6 @@ Nb-Bikes
 1
 NIL
 HORIZONTAL
-
-MONITOR
-229
-167
-295
-212
-Collisions
-collision-counter
-17
-1
-11
 
 @#$#@#$#@
 ## WHAT IS IT?
