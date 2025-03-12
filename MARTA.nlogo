@@ -8,19 +8,19 @@ extensions [gis nw]
 breed [peds ped]
 breed [bikes bike]
 
-globals [time mean-speed stddev-speed flow-cum polygons dataset wgs84-dataset core-area-patches  d study-area-patches]
-peds-own [speedx speedy state break-timer speed current-target]
-bikes-own [speedx speedy state break-timer speed]
+globals [time mean-speed stddev-speed flow-cum polygons dataset wgs84-dataset current-target core-area-patches d study-area-patches goal-patches-list]
+peds-own [speedx speedy state break-timer goal path-to-goal]
+bikes-own [speedx speedy state break-timer goal path-to-goal ]
 patches-own [ obstacle? ]
-;; States 1 = Actively Moving 0 = Taking a break -1= Won't cross again
 
+;; Setup the Environment
 
-to setup ;; Initialize the environment
+to setup
   clear-all
   reset-ticks
 
   ; Load the GeoJSON dataset
-  set dataset gis:load-dataset "C:/Users/marta/Desktop/THESIS/Pillars_SA.geojson"
+  set dataset gis:load-dataset "C:/Users/marta/Desktop/THESIS/Thesis_Area.geojson"
 
   ; Draw the dataset to visualize it
   gis:set-drawing-color red
@@ -30,7 +30,7 @@ to setup ;; Initialize the environment
   set study-area-patches patches with [is-in-study-area? self]
 
  ; Mark these patches for visualization and restrict agent movement
-  ;define-obstacles
+  define-obstacles
   ask study-area-patches [
    set pcolor green
   ]
@@ -42,31 +42,79 @@ to setup ;; Initialize the environment
     set-bikes
 end
 
-;to define-obstacles
- ; ask patches [
-  ;  let my-polygon nobody
-  ;  foreach gis:feature-list-of dataset [
-     ; [feature] ->
-    ;  if gis:intersects? self feature [
-     ;   set my-polygon feature
-   ;   ]
-   ; ]
- ;   if my-polygon != nobody [
-    ;  let polygon-id gis:property-value my-polygon "ID"
-      ;if polygon-id = 999 [
-       ; set obstacle? true
-      ;  set pcolor black  ;; Mark obstacles visually
-     ; ]
-     ; ]
+;; Assign goals to agents within polygon ID 365
+to assign-goal [agent]
+  let possible-goals patches with [is-in-goal-area? self]
+  if any? possible-goals [
+    ask agent [ set goal one-of possible-goals ]
+  ]
+end
 
-  ;  ]
-;end
+;; Check if a patch belongs to polygon ID 365
+to-report is-in-goal-area? [destination-patch]
+  let in-goal? false
+  foreach gis:feature-list-of dataset [
+    [feature] ->
+    let polygon-id gis:property-value feature "ID"
+    if polygon-id = 365 and gis:intersects? destination-patch feature [
+      set in-goal? true
+    ]
+  ]
+  report in-goal?
+end
+
+;; Compute path to goal
+to compute-path [agent]
+  ask agent [
+    if goal != nobody and goal != patch-here [
+      set path-to-goal nw:path-to goal
+    ]
+  ]
+end
 
 
 
+;; Make agent move along path while avoiding obstacles
 
+to move-along-path
+  ask turtles with [path-to-goal != []] [
+    set current-target first path-to-goal  ;; Get next step in the shortest path
+    set path-to-goal but-first path-to-goal  ;; Remove it from the list after selecting
+  ]
+end
 
-to set-peds ;; Initialize pedestrians
+;; Define obstacles: pillars and people who are not moving
+
+to define-obstacles
+  ask patches [
+    set obstacle? false  ;; Ensure all patches have a boolean value initially
+    let my-polygon nobody
+    foreach gis:feature-list-of dataset [
+      [feature] ->
+      if gis:intersects? self feature [
+        set my-polygon feature
+      ]
+    ]
+    ; Define pillars as obstacles
+    if my-polygon != nobody [
+      let polygon-id gis:property-value my-polygon "ID"
+      if polygon-id = 999 [
+        set obstacle? true
+        set pcolor pink  ;; Mark obstacles visually
+      ]
+    ]
+  ]
+
+  ; Mark agents with state = 0 as obstacles
+  ask peds with [state = 0] [
+    set obstacle? true
+    set color white  ;; Mark resting pedestrians visually
+  ]
+end
+
+;; Initialize pedestrians
+
+to set-peds
   repeat Nb-peds [
     create-peds 1 [
       set shape "circle"
@@ -77,11 +125,17 @@ to set-peds ;; Initialize pedestrians
       move-to one-of patches with [is-in-study-area? self and (pxcor = min-pxcor or pxcor = max-pxcor or pycor = min-pycor or pycor = max-pycor)]; start from side of polygon
       set state 1 ; Actively moving by default
       set break-timer 0 ; Timer for taking a break
+      ; Assign a goal
+      assign-goal self
+      compute-path self
+
     ]
   ]
 end
 
-to set-bikes ;; Initialize bikes
+;; Initialize bikes
+
+to set-bikes
   repeat Nb-bikes [
     create-bikes 1 [
       set shape "circle"
@@ -91,133 +145,114 @@ to set-bikes ;; Initialize bikes
       move-to one-of patches with [is-in-study-area? self and (pxcor = min-pxcor or pxcor = max-pxcor or pycor = min-pycor or pycor = max-pycor)]
       set state 1 ; Actively moving by default
       set break-timer 0 ; Timer for taking a break
+      ; Assign a goal
+      assign-goal self
+      compute-path self
     ]
   ]
 end
 
-;; Move agents
 to move
   set time precision (time + dt) 5
   tick-advance 1
 
-  ; Update positions and states for pedestrians
+  ;; Pedestrians
   ask peds [
-    let repx 0 ; Initialize the repulsive force in the x direction
-    let repy 0 ; Initialize the repulsive force in the y direction
-    let hd hd1 ; Set the desired direction (hd) to hd1 by default
-    let h hd1 ; Initialize the current heading (h) to hd1
-    if not (speedx * speedy = 0) [set h atan speedx speedy] ; If the pedestrian's speed is not zero, set the heading (h) based on the current speed
+    let repx 0
+    let repy 0
+    let h hd1
+    if not (speedx * speedy = 0) [ set h atan speedx speedy ]
 
-    ; Calculate the repulsive forces from nearby pedestrians
-    ask peds in-radius (2 * D) with [not (self = myself)] [
-  let dist distance myself
-  if dist > 0 [ ; Ensure distance is nonzero before using towards
-    set repx repx + A * exp((1 - d) / D) * sin(towards myself) * (1 - cos(towards myself - h))
-    set repy repy + A * exp((1 - d) / D) * cos(towards myself) * (1 - cos(towards myself - h))
-  ]
+    ;; Avoid both other pedestrians and bikes
+    ask (other peds in-radius (2 * D)) [
+      let dist-ped distance myself
+      if dist-ped > 0 [
+        set repx repx + A * exp((1 - d) / D) * sin(towards myself) * (1 - cos(towards myself - h))
+        set repy repy + A * exp((1 - d) / D) * cos(towards myself) * (1 - cos(towards myself - h))
+      ]
+    ]
+    ask (bikes in-radius (2 * D)) [
+      let dist-bike distance myself
+      if dist-bike > 0 [
+        set repx repx + A * exp((1 - d) / D) * sin(towards myself)
+        set repy repy + A * exp((1 - d) / D) * cos(towards myself)
+      ]
     ]
 
-    ; Update speed with social force adjustments
-    set speedx speedx + dt * (repx + (V0 * sin hd - speedx) / Tr)
-    set speedy speedy + dt * (repy + (V0 * cos hd - speedy) / Tr)
-  ]
-
-  ; Update positions and states for bikes
- ask bikes [
-  let repx 0   ;; Repulsion force in X direction
-  let repy 0   ;; Repulsion force in Y direction
-  let hd hd1   ;; Desired movement direction
-  let h hd1    ;; Current heading
-
-  ;; Ensure the bike does not change direction abruptly
-  if not (speedx * speedy = 0) [
-    set h atan speedx speedy
-  ]
-
-  ;; Larger perception radius for bikes
-  ask bikes in-radius (3 * D) with [not (self = myself)] [
-    let dist distance myself
-    if dist > 0 [
-      set repx repx + A * exp((1 - d) / D) * sin(towards myself) * (1 - 0.5 * cos(towards myself - h))  ;; Less abrupt avoidance
-      set repy repy + A * exp((1 - d) / D) * cos(towards myself) * (1 - 0.5 * cos(towards myself - h))
+    ;; Avoid obstacles
+    ask patches with [obstacle?] in-radius (1.5 * D) [
+      let dist-obs distance myself
+      if dist-obs > 0 [
+        set repx repx + A * exp((1 - d) / D) * sin(towards myself)
+        set repy repy + A * exp((1 - d) / D) * cos(towards myself)
+      ]
     ]
+
+    ;; Check if current-target is valid before using towards
+    let desired-movement 0  ;; Default to 0 (no movement if no target)
+    if current-target != nobody [
+      set desired-movement towards current-target
+    ]
+
+    ;; Adjust movement with repulsion and path-following
+    set speedx speedx + dt * (repx + (V0 * sin desired-movement - speedx) / Tr)
+    set speedy speedy + dt * (repy + (V0 * cos desired-movement - speedy) / Tr)
+
+    move-to patch-at (xcor + speedx * dt) (ycor + speedy * dt)
   ]
 
-  ;; Adjust speed while preserving momentum
-  set speedx speedx + dt * (repx + (V0 * sin hd - speedx) / (Tr * 2))  ;; Bikes take longer to adjust
-  set speedy speedy + dt * (repy + (V0 * cos hd - speedy) / (Tr * 2))
+  ;; Bikes
+  ask bikes [
+    let repx 0
+    let repy 0
+    let h hd1
+    if not (speedx * speedy = 0) [ set h atan speedx speedy ]
 
-  ;; Prevent abrupt direction changes using angular inertia
-  let new-heading atan speedx speedy
-  set heading heading + (new-heading - heading) * 0.2  ;; Gradual turn adjustment
-]
+    ;; Avoid both other bikes and pedestrians
+    ask (other bikes in-radius (3 * D)) [
+      let dist-bike distance myself
+      if dist-bike > 0 [
+        set repx repx + A * exp((1 - d) / D) * sin(towards myself) * (1 - 0.5 * cos(towards myself - h))
+        set repy repy + A * exp((1 - d) / D) * cos(towards myself) * (1 - 0.5 * cos(towards myself - h))
+      ]
+    ]
+    ask (peds in-radius (3 * D)) [
+      let dist-ped distance myself
+      if dist-ped > 0 [
+        set repx repx + A * exp((1 - d) / D) * sin(towards myself)
+        set repy repy + A * exp((1 - d) / D) * cos(towards myself)
+      ]
+    ]
+
+    ;; Avoid obstacles
+    ask patches with [obstacle?] in-radius (1.5 * D) [
+      let dist-obs distance myself
+      if dist-obs > 0 [
+        set repx repx + A * exp((1 - d) / D) * sin(towards myself)
+        set repy repy + A * exp((1 - d) / D) * cos(towards myself)
+      ]
+    ]
+
+    ;; Check if current-target is valid before using towards
+    let desired-movement 0  ;; Default to 0 (no movement if no target)
+    if current-target != nobody [
+      set desired-movement towards current-target
+    ]
+
+    ;; Adjust movement while preserving angular inertia
+    set speedx speedx + dt * (repx + (V0 * sin desired-movement - speedx) / (Tr * 2))
+    set speedy speedy + dt * (repy + (V0 * cos desired-movement - speedy) / (Tr * 2))
+
+    ;; Angular inertia: smooth direction changes
+    let new-heading atan speedx speedy
+    set heading heading + (new-heading - heading) * 0.2  ;; Gradual turn adjustment
+
+    move-to patch-at (xcor + speedx * dt) (ycor + speedy * dt)
+  ]
 
   update-stats-and-flow
 end
 
-to move-agent
-  ; Find the polygon the agent is currently in
-  let current-polygon nobody
-  foreach gis:feature-list-of dataset [
-    [feature] ->
-    if gis:intersects? self feature [
-      set current-polygon feature
-    ]
-  ]
-
-  ; Only proceed if the agent is inside a polygon
-  if current-polygon != nobody [
-    let polygon-id gis:property-value current-polygon "ID"
-    let velocity read-from-string gis:property-value current-polygon "velocity"
-
-    ; Additional rules for higher chance of stopping in polygons 6 and 9
-    if polygon-id = 6 or polygon-id = 9 [
-      if random-float 1 < 0.5 [ ; 50% chance to stop
-        set state 0
-        set break-timer random 10 + 5
-        set color yellow
-      ]
-    ]
-      if polygon-id = 9 [
-      ; Define angle for movement
-      if random-float 1 < 0.9 [ ; 90% chance to move left/right
-        set heading one-of [150 330] ; East or West
-      ]
-      if random-float 1 > 0.1 [ ; 10% chance to move north/south
-        set heading one-of [60 240] ; North or South
-      ]
-    ]
-
-    if polygon-id = 7 or polygon-id = 8 [
-      ; Periodically stream in and out, with random angles
-      if random-float 1 < 0.2 [ ; 20% chance to stream
-        set heading random 360 ; Any direction
-      ]
-    ]
-    if polygon-id = 2 or polygon-id = 3 or polygon-id = 4 or polygon-id = 5 [
-      ; Periodically stream in and out, with random angles
-      if random-float 1 < 0.7 [ ; 70% chance to horizontal;
-        set heading one-of [150 330] ; East or West
-      ]
-    ]
-
-    if polygon-id = 8 or polygon-id = 6 [
-      ; Higher chance to stop temporarily
-      if random-float 1 < 0.5 [ ; 50% chance to pause
-        set break-timer random 20 + 5 ; Random break duration
-      ]
-    ]
-  ]
-
-  ; Update position
-  set xcor xcor + speedx * dt
-  set ycor ycor + speedy * dt
-
-  ; Check if agent is out of study area and remove it
-  if not is-in-study-area? patch-here [
-    die
-  ]
-end
 
 
 
@@ -226,7 +261,7 @@ to-report is-in-study-area? [candidate-patch]
   foreach gis:feature-list-of dataset [
     [feature] ->
     let polygon-id gis:property-value feature "ID"
-    if (polygon-id = 1 or polygon-id = 2 or polygon-id = 3 or polygon-id = 4 or polygon-id = 5  or polygon-id = 6 or polygon-id = 7 or polygon-id = 8 or polygon-id = 9) and gis:intersects? candidate-patch feature [
+    if (polygon-id = 1 or polygon-id = 2 or polygon-id = 3 or polygon-id = 4 or polygon-id = 5  or polygon-id = 6 or polygon-id = 7 or polygon-id = 8 or polygon-id = 9 or polygon-id = 999 or polygon-id = 365) and gis:intersects? candidate-patch feature [
       set in-area? true
     ]
   ]
