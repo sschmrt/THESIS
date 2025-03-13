@@ -9,8 +9,8 @@ breed [peds ped]
 breed [bikes bike]
 
 globals [time mean-speed stddev-speed flow-cum polygons dataset wgs84-dataset current-target core-area-patches d study-area-patches goal-patches-list]
-peds-own [speedx speedy state break-timer goal path-to-goal]
-bikes-own [speedx speedy state break-timer goal path-to-goal ]
+peds-own [speedx speedy state break-timer goal path-to-goal TTC]
+bikes-own [speedx speedy state break-timer goal path-to-goal TTC ]
 patches-own [ obstacle? ]
 
 ;; Setup the Environment
@@ -120,6 +120,7 @@ to set-peds
       set shape "circle"
       set color cyan
       set size 0.3
+       set TTC 0  ;; Initialize TTC to 0
 
       ; Spawn agents at the sides of the simulation
       move-to one-of patches with [is-in-study-area? self and (pxcor = min-pxcor or pxcor = max-pxcor or pycor = min-pycor or pycor = max-pycor)]; start from side of polygon
@@ -141,6 +142,7 @@ to set-bikes
       set shape "circle"
       set color magenta
       set size 0.45
+      set TTC 0  ;; Initialize TTC to 0
       ; Spawn agents at the sides of the simulation
       move-to one-of patches with [is-in-study-area? self and (pxcor = min-pxcor or pxcor = max-pxcor or pycor = min-pycor or pycor = max-pycor)]
       set state 1 ; Actively moving by default
@@ -153,6 +155,7 @@ to set-bikes
 end
 
 to move
+  if ticks >= 3600 [ stop ]  ;; Stops the simulation after 3600 ticks
   set time precision (time + dt) 5
   tick-advance 1
 
@@ -251,6 +254,7 @@ to move
   ]
 
   update-stats-and-flow
+  check-conflicts
 end
 
 
@@ -314,8 +318,46 @@ to update-stats-and-flow
   plot! ; Update the plots
 end
 
+;; Calculate Time-To-Collision
+to-report compute-TTC [agent1 agent2]
+  let dxx [xcor] of agent2 - [xcor] of agent1  ;; X distance between agents
+  let dyy [ycor] of agent2 - [ycor] of agent1  ;; Y distance between agents
+  let dvx [speedx] of agent2 - [speedx] of agent1     ;; X velocity difference
+  let dvy [speedy] of agent2 - [speedy] of agent1     ;; Y velocity difference
+  let dist sqrt (dxx * dxx + dyy * dyy)             ;; Euclidean distance
+  let dv sqrt (dvx * dvx + dvy * dvy)        ;; Relative velocity magnitude
 
+  if dv > 0 [
+    report d / dv  ;; Compute TTC if approaching
+  ]
+  report false ;; No risk if not approaching
+end
 
+;Check for conflicts with threshold
+to check-conflicts
+  ask turtles [
+    let my-TTC []
+    ask other turtles [
+      let current-ttc compute-TTC self myself
+      if current-ttc != false and ttc < 2 [  ;; Threshold: TTC < 2 seconds
+        set my-TTC lput current-ttc my-TTC  ;; Store TTC values
+      ]
+    ]
+    ;; Store minimum TTC (most critical conflict)
+    if length my-TTC > 0 [
+      set TTC min my-TTC  ;; Assign the minimum TTC to the agent's TTC variable
+    ]
+  ]
+end
+
+;; Log TTC in csv
+to log-TTC
+  file-open "TTC_data.csv"
+  ask turtles [
+    file-print (word who "," TTC)
+  ]
+  file-close
+end
 
 
 to plot!
@@ -608,7 +650,7 @@ hd1
 hd1
 0
 360
-105.0
+265.0
 5
 1
 degree
