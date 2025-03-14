@@ -35,8 +35,8 @@ to setup
    set pcolor green
   ]
   ; Initialize variables
-    ;set Nb-peds
-    ;set Nb-bikes
+    set Nb-peds 100
+    set Nb-bikes 100
     set dt 0.05
     set-peds
     set-bikes
@@ -50,19 +50,6 @@ to assign-goal [agent]
   ]
 end
 
-;; Check if a patch belongs to polygon ID 365
-to-report is-in-goal-area? [destination-patch]
-  let in-goal? false
-  foreach gis:feature-list-of dataset [
-    [feature] ->
-    let polygon-id gis:property-value feature "ID"
-    if polygon-id = 365 and gis:intersects? destination-patch feature [
-      set in-goal? true
-    ]
-  ]
-  report in-goal?
-end
-
 ;; Compute path to goal
 to compute-path [agent]
   ask agent [
@@ -73,9 +60,7 @@ to compute-path [agent]
 end
 
 
-
 ;; Make agent move along path while avoiding obstacles
-
 to move-along-path
   ask turtles with [path-to-goal != []] [
     set current-target first path-to-goal  ;; Get next step in the shortest path
@@ -84,10 +69,9 @@ to move-along-path
 end
 
 ;; Define obstacles: pillars and people who are not moving
-
 to define-obstacles
   ask patches [
-    set obstacle? false  ;; Ensure all patches have a boolean value initially
+    set obstacle? false
     let my-polygon nobody
     foreach gis:feature-list-of dataset [
       [feature] ->
@@ -113,7 +97,6 @@ to define-obstacles
 end
 
 ;; Initialize pedestrians
-
 to set-peds
   repeat Nb-peds [
     create-peds 1 [
@@ -135,7 +118,6 @@ to set-peds
 end
 
 ;; Initialize bikes
-
 to set-bikes
   repeat Nb-bikes [
     create-bikes 1 [
@@ -154,6 +136,7 @@ to set-bikes
   ]
 end
 
+;; Make agents move following obstacle avoduance and SFT
 to move
   if ticks >= 3600 [ stop ]  ;; Stops the simulation after 3600 ticks
   set time precision (time + dt) 5
@@ -166,7 +149,7 @@ to move
     let h hd1
     if not (speedx * speedy = 0) [ set h atan speedx speedy ]
 
-    ;; Avoid both other pedestrians and bikes
+    ;; Avoid both other pedestrians and bikes with SFT
     ask (other peds in-radius (2 * D)) [
       let dist-ped distance myself
       if dist-ped > 0 [
@@ -211,7 +194,7 @@ to move
     let h hd1
     if not (speedx * speedy = 0) [ set h atan speedx speedy ]
 
-    ;; Avoid both other bikes and pedestrians
+    ;; Avoid both other bikes and pedestrians using SFT
     ask (other bikes in-radius (3 * D)) [
       let dist-bike distance myself
       if dist-bike > 0 [
@@ -257,9 +240,7 @@ to move
   check-conflicts
 end
 
-
-
-
+;; Define the study area
 to-report is-in-study-area? [candidate-patch]
   let in-area? false
   foreach gis:feature-list-of dataset [
@@ -272,6 +253,20 @@ to-report is-in-study-area? [candidate-patch]
   report in-area?
 end
 
+;; Define destination area
+to-report is-in-goal-area? [destination-patch]
+  let in-goal? false
+  foreach gis:feature-list-of dataset [
+    [feature] ->
+    let polygon-id gis:property-value feature "ID"
+    if polygon-id = 365 and gis:intersects? destination-patch feature [
+      set in-goal? true
+    ]
+  ]
+  report in-goal?
+end
+
+;; Define outputs
 to update-stats-and-flow
   let peds-with-speed [ self ] of peds with [state > -1]
   let bikes-with-speed [ self ] of bikes with [state > -1]
@@ -359,7 +354,7 @@ to log-TTC
   file-close
 end
 
-
+;; Plot your output!
 to plot!
   set-current-plot "Speed"
   set-current-plot-pen "Mean"
@@ -410,7 +405,7 @@ Nb-peds
 Nb-peds
 0
 224
-224.0
+100.0
 1
 1
 NIL
@@ -710,7 +705,7 @@ Nb-Bikes
 Nb-Bikes
 0
 300
-203.0
+100.0
 1
 1
 NIL
