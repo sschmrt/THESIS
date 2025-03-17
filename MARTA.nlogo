@@ -3,14 +3,14 @@
 ; Master Thesis
 ; Supervisor Arend Ligtenberg
 
-extensions [gis nw]
+extensions [gis nw table]
 
 breed [peds ped]
 breed [bikes bike]
 
-globals [time mean-speed stddev-speed flow-cum polygons dataset wgs84-dataset current-target core-area-patches d study-area-patches goal-patches-list]
-peds-own [speedx speedy state break-timer goal path-to-goal TTC]
-bikes-own [speedx speedy state break-timer goal path-to-goal TTC ]
+globals [conflict-table time mean-speed stddev-speed flow-cum polygons dataset wgs84-dataset current-target core-area-patches d study-area-patches goal-patches-list]
+peds-own [speedx speedy state break-timer goal path-to-goal]
+bikes-own [speedx speedy state break-timer goal path-to-goal ]
 patches-own [ obstacle? ]
 
 ;; Setup the Environment
@@ -18,6 +18,7 @@ patches-own [ obstacle? ]
 to setup
   clear-all
   reset-ticks
+  set conflict-table table:make
 
   ; Load the GeoJSON dataset
   set dataset gis:load-dataset "C:/Users/marta/Desktop/THESIS/Thesis_Area.geojson"
@@ -96,6 +97,45 @@ to define-obstacles
   ]
 end
 
+; Check conflict ins tudy area
+to check-conflict
+  ask turtles [
+    let my-polygon-id [polygon-id] of patch-here  ;; Get the polygon ID
+    let severe-count 0
+    let moderate-count 0
+    let mild-count 0
+
+
+    ;; Only log conflicts in the relevant polygons
+    if member? my-polygon-id [2 3 4 5 6 7 8 9] [
+      ;; Check all other agents
+      ask other turtles [
+        let d distance myself  ;; Calculate distance between agents
+
+        ;; Categorize conflict severity
+        if d <= 1.5 [set conflicts severe (conflicts severe + 1)]
+        if d > 1.5 and d <= 2.5 [set conflicts moderate (conflicts moderate + 1)]
+        if d > 2.5 and d <= 3.5 [set conflicts mild (conflicts mild + 1)]
+      ]
+
+       ;; Store results in the table
+    if table:has-key? conflict-table my-polygon-id [
+      ;; Get old values and update them
+      let old-values table:get conflict-table my-polygon-id
+      table:put conflict-table my-polygon-id (list
+        (item 0 old-values + severe-count)
+        (item 1 old-values + moderate-count)
+        (item 2 old-values + mild-count)
+      )
+    ]
+    else [
+      ;; If polygon ID is not in the table yet, add it
+      table:put conflict-table my-polygon-id (list severe-count moderate-count mild-count)
+    ]
+  ]
+  ]
+end
+
 ;; Initialize pedestrians
 to set-peds
   repeat Nb-peds [
@@ -103,7 +143,7 @@ to set-peds
       set shape "circle"
       set color cyan
       set size 0.3
-       set TTC 0  ;; Initialize TTC to 0
+
 
       ; Spawn agents at the sides of the simulation
       move-to one-of patches with [is-in-study-area? self and (pxcor = min-pxcor or pxcor = max-pxcor or pycor = min-pycor or pycor = max-pycor)]; start from side of polygon
@@ -124,7 +164,6 @@ to set-bikes
       set shape "circle"
       set color magenta
       set size 0.45
-      set TTC 0  ;; Initialize TTC to 0
       ; Spawn agents at the sides of the simulation
       move-to one-of patches with [is-in-study-area? self and (pxcor = min-pxcor or pxcor = max-pxcor or pycor = min-pycor or pycor = max-pycor)]
       set state 1 ; Actively moving by default
@@ -137,107 +176,165 @@ to set-bikes
 end
 
 ;; Make agents move following obstacle avoduance and SFT
+;; Make agents move following obstacle avoidance and SFT
+
 to move
-  if ticks >= 3600 [ stop ]  ;; Stops the simulation after 3600 ticks
+  if ticks >= 3600 [ stop ] ;; Stops the simulation after 3600 ticks
   set time precision (time + dt) 5
   tick-advance 1
 
   ;; Pedestrians
   ask peds [
-    let repx 0
-    let repy 0
-    let h hd1
-    if not (speedx * speedy = 0) [ set h atan speedx speedy ]
+    if state = 1 [
+      let repx 0
+      let repy 0
+      let h hd1
+      if not (speedx * speedy = 0) [ set h atan speedx speedy ]
 
-    ;; Avoid both other pedestrians and bikes with SFT
-    ask (other peds in-radius (2 * D)) [
-      let dist-ped distance myself
-      if dist-ped > 0 [
-        set repx repx + A * exp((1 - d) / D) * sin(towards myself) * (1 - cos(towards myself - h))
-        set repy repy + A * exp((1 - d) / D) * cos(towards myself) * (1 - cos(towards myself - h))
+      ;; Avoid both other pedestrians and bikes with SFT
+      ask (other peds in-radius (2 * D)) [
+        let dist-ped distance myself
+        if dist-ped > 0 [
+          set repx repx + A * exp((1 - d) / D) * sin(towards myself) * (1 - cos(towards myself - h))
+          set repy repy + A * exp((1 - d) / D) * cos(towards myself) * (1 - cos(towards myself - h))
+        ]
+      ]
+      ask (bikes in-radius (2 * D)) [
+        let dist-bike distance myself
+        if dist-bike > 0 [
+          set repx repx + A * exp((1 - d) / D) * sin(towards myself)
+          set repy repy + A * exp((1 - d) / D) * cos(towards myself)
+        ]
+      ]
+
+      ;; Avoid obstacles
+      ask patches with [obstacle?] in-radius (1.5 * D) [
+        let dist-obs distance myself
+        if dist-obs > 0 [
+          set repx repx + A * exp((1 - d) / D) * sin(towards myself)
+          set repy repy + A * exp((1 - d) / D) * cos(towards myself)
+        ]
+      ]
+
+      ;; Check if current-target is valid before using towards
+      let desired-movement 0 ;; Default to 0 (no movement if no target)
+      if current-target != nobody [
+        set desired-movement towards current-target
+      ]
+
+      ;; Adjust movement with repulsion and path-following
+      set speedx speedx + dt * (repx + (V0 * sin desired-movement - speedx) / Tr)
+      set speedy speedy + dt * (repy + (V0 * cos desired-movement - speedy) / Tr)
+
+      move-to patch-at (xcor + speedx * dt) (ycor + speedy * dt)
+
+      ; Check for break
+      check-for-break self
+    ]
+    if state = 0 [
+      ; When state is 0, ensure the agent doesn't move
+      set speedx 0
+      set speedy 0
+      ; Countdown the break timer
+      set break-timer break-timer - 1
+      if break-timer <= 0 [
+        set state 1 ; Resume movement
       ]
     ]
-    ask (bikes in-radius (2 * D)) [
-      let dist-bike distance myself
-      if dist-bike > 0 [
-        set repx repx + A * exp((1 - d) / D) * sin(towards myself)
-        set repy repy + A * exp((1 - d) / D) * cos(towards myself)
-      ]
-    ]
-
-    ;; Avoid obstacles
-    ask patches with [obstacle?] in-radius (1.5 * D) [
-      let dist-obs distance myself
-      if dist-obs > 0 [
-        set repx repx + A * exp((1 - d) / D) * sin(towards myself)
-        set repy repy + A * exp((1 - d) / D) * cos(towards myself)
-      ]
-    ]
-
-    ;; Check if current-target is valid before using towards
-    let desired-movement 0  ;; Default to 0 (no movement if no target)
-    if current-target != nobody [
-      set desired-movement towards current-target
-    ]
-
-    ;; Adjust movement with repulsion and path-following
-    set speedx speedx + dt * (repx + (V0 * sin desired-movement - speedx) / Tr)
-    set speedy speedy + dt * (repy + (V0 * cos desired-movement - speedy) / Tr)
-
-    move-to patch-at (xcor + speedx * dt) (ycor + speedy * dt)
   ]
 
   ;; Bikes
   ask bikes [
-    let repx 0
-    let repy 0
-    let h hd1
-    if not (speedx * speedy = 0) [ set h atan speedx speedy ]
+    if state = 1 [
+      let repx 0
+      let repy 0
+      let h hd1
+      if not (speedx * speedy = 0) [ set h atan speedx speedy ]
 
-    ;; Avoid both other bikes and pedestrians using SFT
-    ask (other bikes in-radius (3 * D)) [
-      let dist-bike distance myself
-      if dist-bike > 0 [
-        set repx repx + A * exp((1 - d) / D) * sin(towards myself) * (1 - 0.5 * cos(towards myself - h))
-        set repy repy + A * exp((1 - d) / D) * cos(towards myself) * (1 - 0.5 * cos(towards myself - h))
+      ;; Avoid both other bikes and pedestrians using SFT
+      ask (other bikes in-radius (3 * D)) [
+        let dist-bike distance myself
+        if dist-bike > 0 [
+          set repx repx + A * exp((1 - d) / D) * sin(towards myself) * (1 - 0.5 * cos(towards myself - h))
+          set repy repy + A * exp((1 - d) / D) * cos(towards myself) * (1 - 0.5 * cos(towards myself - h))
+        ]
+      ]
+      ask (peds in-radius (3 * D)) [
+        let dist-ped distance myself
+        if dist-ped > 0 [
+          set repx repx + A * exp((1 - d) / D) * sin(towards myself)
+          set repy repy + A * exp((1 - d) / D) * cos(towards myself)
+        ]
+      ]
+
+      ;; Avoid obstacles
+      ask patches with [obstacle?] in-radius (1.5 * D) [
+        let dist-obs distance myself
+        if dist-obs > 0 [
+          set repx repx + A * exp((1 - d) / D) * sin(towards myself)
+          set repy repy + A * exp((1 - d) / D) * cos(towards myself)
+        ]
+      ]
+
+      ;; Check if current-target is valid before using towards
+      let desired-movement 0 ;; Default to 0 (no movement if no target)
+      if current-target != nobody [
+        set desired-movement towards current-target
+      ]
+
+      ;; Adjust movement while preserving angular inertia
+      set speedx speedx + dt * (repx + (V0 * sin desired-movement - speedx) / (Tr * 2))
+      set speedy speedy + dt * (repy + (V0 * cos desired-movement - speedy) / (Tr * 2))
+
+      ;; Angular inertia: smooth direction changes
+      let new-heading atan speedx speedy
+      set heading heading + (new-heading - heading) * 0.2 ;; Gradual turn adjustment
+
+      move-to patch-at (xcor + speedx * dt) (ycor + speedy * dt)
+
+      ; Check for break
+      check-for-break self
+    ]
+     if state = 0  [
+      ; When state is 0, ensure the agent doesn't move
+      set speedx 0
+      set speedy 0
+      ; Countdown the break timer
+      set break-timer break-timer - 1
+      if break-timer <= 0 [
+        set state 1 ; Resume movement
       ]
     ]
-    ask (peds in-radius (3 * D)) [
-      let dist-ped distance myself
-      if dist-ped > 0 [
-        set repx repx + A * exp((1 - d) / D) * sin(towards myself)
-        set repy repy + A * exp((1 - d) / D) * cos(towards myself)
-      ]
-    ]
-
-    ;; Avoid obstacles
-    ask patches with [obstacle?] in-radius (1.5 * D) [
-      let dist-obs distance myself
-      if dist-obs > 0 [
-        set repx repx + A * exp((1 - d) / D) * sin(towards myself)
-        set repy repy + A * exp((1 - d) / D) * cos(towards myself)
-      ]
-    ]
-
-    ;; Check if current-target is valid before using towards
-    let desired-movement 0  ;; Default to 0 (no movement if no target)
-    if current-target != nobody [
-      set desired-movement towards current-target
-    ]
-
-    ;; Adjust movement while preserving angular inertia
-    set speedx speedx + dt * (repx + (V0 * sin desired-movement - speedx) / (Tr * 2))
-    set speedy speedy + dt * (repy + (V0 * cos desired-movement - speedy) / (Tr * 2))
-
-    ;; Angular inertia: smooth direction changes
-    let new-heading atan speedx speedy
-    set heading heading + (new-heading - heading) * 0.2  ;; Gradual turn adjustment
-
-    move-to patch-at (xcor + speedx * dt) (ycor + speedy * dt)
   ]
-
+  check-conflict
+  report-conflict
   update-stats-and-flow
-  check-conflicts
+end
+;; Check for breaks
+
+to check-for-break [agent]
+  let my-polygon nobody
+  foreach gis:feature-list-of dataset [
+    [feature] ->
+    if gis:intersects? patch-here feature [
+      set my-polygon feature
+    ]
+  ]
+  if my-polygon != nobody [
+    let polygon-id gis:property-value my-polygon "ID"
+    let break-probability 0
+    if member? polygon-id [6 7 8 9] [
+      set break-probability 0.4 ; Higher probability in polygons 6, 7, 8, 9
+    ]
+    if member? polygon-id [2 3 4 5] [
+      set break-probability 0.1 ; Lower probability in polygons 2, 3, 4, 5
+    ]
+
+    if random-float 1 < break-probability [
+      set state 0
+      set break-timer random 5 + 1 ; Random break duration between 1 and 5
+    ]
+  ]
 end
 
 ;; Define the study area
@@ -313,46 +410,16 @@ to update-stats-and-flow
   plot! ; Update the plots
 end
 
-;; Calculate Time-To-Collision
-to-report compute-TTC [agent1 agent2]
-  let dxx [xcor] of agent2 - [xcor] of agent1  ;; X distance between agents
-  let dyy [ycor] of agent2 - [ycor] of agent1  ;; Y distance between agents
-  let dvx [speedx] of agent2 - [speedx] of agent1     ;; X velocity difference
-  let dvy [speedy] of agent2 - [speedy] of agent1     ;; Y velocity difference
-  let dist sqrt (dxx * dxx + dyy * dyy)             ;; Euclidean distance
-  let dv sqrt (dvx * dvx + dvy * dvy)        ;; Relative velocity magnitude
-
-  if dv > 0 [
-    report d / dv  ;; Compute TTC if approaching
-  ]
-  report false ;; No risk if not approaching
-end
-
-;Check for conflicts with threshold
-to check-conflicts
-  ask turtles [
-    let my-TTC []
-    ask other turtles [
-      let current-ttc compute-TTC self myself
-      if current-ttc != false and ttc < 2 [  ;; Threshold: TTC < 2 seconds
-        set my-TTC lput current-ttc my-TTC  ;; Store TTC values
-      ]
-    ]
-    ;; Store minimum TTC (most critical conflict)
-    if length my-TTC > 0 [
-      set TTC min my-TTC  ;; Assign the minimum TTC to the agent's TTC variable
-    ]
+; Output conflict
+to report-conflicts
+  print "Polygon ID | Severe | Moderate | Mild"
+  foreach table:keys conflict-table [
+    ? -> let data table:get conflict-table ?
+    print (word ? " | " item 0 data " | " item 1 data " | " item 2 data)
   ]
 end
 
-;; Log TTC in csv
-to log-TTC
-  file-open "TTC_data.csv"
-  ask turtles [
-    file-print (word who "," TTC)
-  ]
-  file-close
-end
+
 
 ;; Plot your output!
 to plot!
