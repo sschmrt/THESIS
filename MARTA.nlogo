@@ -7,10 +7,11 @@ extensions [gis nw table]
 
 breed [peds ped]
 breed [bikes bike]
+breed [destinations destination]
 
-globals [conflict-table time mean-speed stddev-speed flow-cum polygons dataset wgs84-dataset current-target core-area-patches d study-area-patches goal-patches-list]
-peds-own [speedx speedy state break-timer goal path-to-goal]
-bikes-own [speedx speedy state break-timer goal path-to-goal ]
+globals [conflict-table time mean-speed stddev-speed flow-cum polygons dataset wgs84-dataset core-area-patches d study-area-patches goal-patches-list]
+peds-own [speedx speedy state break-timer goal path-to-goal my-destination current-target]
+bikes-own [speedx speedy state break-timer goal path-to-goal my-destination current-target ]
 patches-own [ obstacle? ]
 
 ;; Setup the Environment
@@ -43,29 +44,74 @@ to setup
     set-bikes
 end
 
-;; Assign goals to agents within polygon ID 365
-to assign-goal [agent]
-  let possible-goals patches with [is-in-goal-area? self]
-  if any? possible-goals [
-    ask agent [ set goal one-of possible-goals ]
-  ]
-end
-
-;; Compute path to goal
-to compute-path [agent]
-  ask agent [
-    if goal != nobody and goal != patch-here [
-      set path-to-goal nw:path-to goal
+to setup-destinations
+  ask patches with [ is-in-study-area? self and (pxcor = min-pxcor or pxcor = max-pxcor or pycor = min-pycor or pycor = max-pycor) ] [
+    sprout-destinations 100 [
+      set color red
+      set shape "circle"
+      set size 0.01
+      set heading 0  ;; Ensure they don’t move
     ]
   ]
 end
 
 
+to assign-destinations
+  ;; Ask pedestrians to assign destinations
+  ask peds [
+    let chosen-destination one-of destinations
+    if chosen-destination != nobody [
+      set my-destination chosen-destination
+    ]
+    if chosen-destination = nobody [
+      print "No valid destination found for ped"
+    ]
+  ]
+
+  ;; Ask bikes to assign destinations
+  ask bikes [
+    let chosen-destination one-of destinations
+    if chosen-destination != nobody [
+      set my-destination chosen-destination
+    ]
+    if chosen-destination = nobody [
+      print "No valid destination found for bike"
+    ]
+  ]
+end
+
+;; Compute path to goal
+to compute-path
+  ;; Ask pedestrians to compute paths
+  ask peds [
+    if my-destination != nobody [
+      show my-destination
+      set path-to-goal nw:path-to my-destination
+    ]
+    if my-destination = nobody [
+      print "No valid destination set for ped"
+    ]
+  ]
+
+  ;; Ask bikes to compute paths
+  ask bikes [
+    if my-destination != nobody [
+      show my-destination
+      set path-to-goal nw:path-to my-destination
+    ]
+    if my-destination = nobody [
+      print "No valid destination set for bike"
+    ]
+  ]
+end
+
 ;; Make agent move along path while avoiding obstacles
 to move-along-path
-  ask turtles with [path-to-goal != []] [
-    set current-target first path-to-goal  ;; Get next step in the shortest path
-    set path-to-goal but-first path-to-goal  ;; Remove it from the list after selecting
+  ask turtles with [ path-to-goal != [] ] [
+    set current-target first path-to-goal  ;; Next step in the path
+    face current-target  ;; Turn towards it
+    move-to current-target  ;; Move there
+    set path-to-goal but-first path-to-goal  ;; Remove visited step
   ]
 end
 
@@ -100,39 +146,48 @@ end
 ; Check conflict ins tudy area
 to check-conflict
   ask turtles [
-    let my-polygon-id [polygon-id] of patch-here  ;; Get the polygon ID
-    let severe-count 0
-    let moderate-count 0
-    let mild-count 0
-
-
-    ;; Only log conflicts in the relevant polygons
-    if member? my-polygon-id [2 3 4 5 6 7 8 9] [
-      ;; Check all other agents
-      ask other turtles [
-        let d distance myself  ;; Calculate distance between agents
-
-        ;; Categorize conflict severity
-        if d <= 1.5 [set conflicts severe (conflicts severe + 1)]
-        if d > 1.5 and d <= 2.5 [set conflicts moderate (conflicts moderate + 1)]
-        if d > 2.5 and d <= 3.5 [set conflicts mild (conflicts mild + 1)]
+    let my-polygon nobody
+    foreach gis:feature-list-of dataset [
+      [feature] ->
+      if gis:intersects? patch-here feature [
+        set my-polygon feature
       ]
+    ]
 
-       ;; Store results in the table
-    if table:has-key? conflict-table my-polygon-id [
-      ;; Get old values and update them
-      let old-values table:get conflict-table my-polygon-id
-      table:put conflict-table my-polygon-id (list
-        (item 0 old-values + severe-count)
-        (item 1 old-values + moderate-count)
-        (item 2 old-values + mild-count)
-      )
+    ;; Only proceed if the turtle is in a relevant polygon
+    if my-polygon != nobody [
+      let polygon-id gis:property-value my-polygon "ID"
+      if member? polygon-id [2 3 4 5 6 7 8 9] [
+        let severe-count 0
+        let moderate-count 0
+        let mild-count 0
+
+        ;; Check all other agents
+        ask other turtles [
+          let distancetoother distance myself  ;; Calculate distance between agents
+
+          ;; Categorize conflict severity
+          if distancetoother <= 1.5 [set severe-count severe-count + 1]
+          if distancetoother > 1.5 and d <= 2.5 [set moderate-count moderate-count + 1]
+          if distancetoother > 2.5 and d <= 3.5 [set mild-count mild-count + 1]
+        ]
+
+        ;; Store results in the table
+        ifelse table:has-key? conflict-table polygon-id [
+          ;; Get old values and update them
+          let old-values table:get conflict-table polygon-id
+          table:put conflict-table polygon-id (list
+            (item 0 old-values + severe-count)
+            (item 1 old-values + moderate-count)
+            (item 2 old-values + mild-count)
+          )
+        ]
+        [
+          ;; If polygon ID is not in the table yet, add it
+          table:put conflict-table polygon-id (list severe-count moderate-count mild-count)
+        ]
+      ]
     ]
-    else [
-      ;; If polygon ID is not in the table yet, add it
-      table:put conflict-table my-polygon-id (list severe-count moderate-count mild-count)
-    ]
-  ]
   ]
 end
 
@@ -150,8 +205,8 @@ to set-peds
       set state 1 ; Actively moving by default
       set break-timer 0 ; Timer for taking a break
       ; Assign a goal
-      assign-goal self
-      compute-path self
+      assign-destinations
+      compute-path
 
     ]
   ]
@@ -163,20 +218,19 @@ to set-bikes
     create-bikes 1 [
       set shape "circle"
       set color magenta
-      set size 0.45
+      set size 0.42
       ; Spawn agents at the sides of the simulation
       move-to one-of patches with [is-in-study-area? self and (pxcor = min-pxcor or pxcor = max-pxcor or pycor = min-pycor or pycor = max-pycor)]
       set state 1 ; Actively moving by default
       set break-timer 0 ; Timer for taking a break
       ; Assign a goal
-      assign-goal self
-      compute-path self
+      assign-destinations
+      compute-path
     ]
   ]
 end
 
-;; Make agents move following obstacle avoduance and SFT
-;; Make agents move following obstacle avoidance and SFT
+;; Make agents move following obstacle avoduance and sftT
 
 to move
   if ticks >= 3600 [ stop ] ;; Stops the simulation after 3600 ticks
@@ -307,7 +361,7 @@ to move
     ]
   ]
   check-conflict
-  report-conflict
+  report-conflicts
   update-stats-and-flow
 end
 ;; Check for breaks
@@ -343,7 +397,7 @@ to-report is-in-study-area? [candidate-patch]
   foreach gis:feature-list-of dataset [
     [feature] ->
     let polygon-id gis:property-value feature "ID"
-    if (polygon-id = 1 or polygon-id = 2 or polygon-id = 3 or polygon-id = 4 or polygon-id = 5  or polygon-id = 6 or polygon-id = 7 or polygon-id = 8 or polygon-id = 9 or polygon-id = 999 or polygon-id = 365) and gis:intersects? candidate-patch feature [
+    if (polygon-id = 1) and gis:intersects? candidate-patch feature [
       set in-area? true
     ]
   ]
@@ -361,6 +415,58 @@ to-report is-in-goal-area? [destination-patch]
     ]
   ]
   report in-goal?
+end
+
+to define-polygons
+  set polygons [
+    ;; Polygon A
+    [[4.898868034622089 52.380729910405925]
+     [4.899086924426656 52.380651258166075]
+     [4.898814388826453 52.380692163549234]
+     [4.899042664813515 52.380606426481485]]
+
+    ;; Polygon B
+    [[4.898814388826453 52.380692163549234]
+     [4.899042664813515 52.380606426481485]
+     [4.898727879702523 52.380622942233295]
+     [4.898974181997565 52.380530096774493]]
+
+    ;; Polygon C
+    [[4.899086924426656 52.380651258166075]
+     [4.899285788129391 52.380578908062809]
+     [4.899042664813515 52.380606426481485]
+     [4.899250273748666 52.380530238911234]]
+
+    ;; Polygon D
+    [[4.899042664813515 52.380606426481485]
+     [4.899250273748666 52.380530238911234]
+     [4.898974181997565 52.380530096774493]
+     [4.899184823941056 52.380450574044353]]
+
+    ;; Polygon E
+    [[4.899285788129391 52.380578908062809]
+     [4.899484403146458 52.380508911605411]
+     [4.899250273748666 52.380530238911234]
+     [4.899435751681204 52.380463361443731]]
+
+    ;; Polygon F
+    [[4.899250273748666 52.380530238911234]
+     [4.899435751681204 52.380463361443731]
+     [4.899361700219916 52.380388994013842]
+     [4.899520014347648 52.380333955654038]]
+
+    ;; Polygon G
+    [[4.899484403146458 52.380508911605411]
+     [4.899631221036665 52.380454148064992]
+     [4.899435751681204 52.380463361443731]
+     [4.899592601858232 52.380408083732121]]
+
+    ;; Polygon H
+    [[4.899435751681204 52.380463361443731]
+     [4.899592601858232 52.380408083732121]
+     [4.899361700219916 52.380388994013842]
+     [4.899520014347648 52.380333955654038]]
+  ]
 end
 
 ;; Define outputs
