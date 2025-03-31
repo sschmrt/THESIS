@@ -3,16 +3,15 @@
 ; Master Thesis
 ; Supervisor Arend Ligtenberg
 
-extensions [gis nw table]
+extensions [gis table]
 
 breed [peds ped]
 breed [bikes bike]
-breed [destinations destination]
 
-globals [conflict-table time mean-speed stddev-speed flow-cum polygons dataset wgs84-dataset core-area-patches d study-area-patches goal-patches-list]
+globals [destination-features conflict-table time mean-speed stddev-speed flow-cum polygons dataset wgs84-dataset core-area-patches d study-area-patches goal-patches-list]
 peds-own [speedx speedy state break-timer goal path-to-goal my-destination current-target]
 bikes-own [speedx speedy state break-timer goal path-to-goal my-destination current-target ]
-patches-own [ obstacle? ]
+patches-own [ obstacle? destination-type]
 
 ;; Setup the Environment
 
@@ -22,7 +21,7 @@ to setup
   set conflict-table table:make
 
   ; Load the GeoJSON dataset
-  set dataset gis:load-dataset "C:/Users/marta/Desktop/THESIS/Thesis_Area.geojson"
+  set dataset gis:load-dataset "C:/Users/marta/Desktop/THESIS/Thesis_Simple.geojson"
 
   ; Draw the dataset to visualize it
   gis:set-drawing-color red
@@ -30,6 +29,9 @@ to setup
 
  ; Identify patches in study area
   set study-area-patches patches with [is-in-study-area? self]
+
+  ; Classify destination patches
+  classify-destination-patches
 
  ; Mark these patches for visualization and restrict agent movement
   define-obstacles
@@ -44,76 +46,56 @@ to setup
     set-bikes
 end
 
-to setup-destinations
-  ask patches with [ is-in-study-area? self and (pxcor = min-pxcor or pxcor = max-pxcor or pycor = min-pycor or pycor = max-pycor) ] [
-    sprout-destinations 100 [
-      set color red
-      set shape "circle"
-      set size 0.01
-      set heading 0  ;; Ensure they don’t move
+to classify-destination-patches
+  ask patches [
+     foreach gis:feature-list-of destination-features [
+    [feature] ->
+    ;; Get the function value of the polygon
+    let function-value gis:property-value feature "function"
+
+    ;; Assign function-value to patches that intersect with the feature
+    ask patches with [ gis:intersects? self feature ] [
+      if function-value = 1 [ set destination-type "east" ]
+      if function-value = 2 [ set destination-type "north" ]
+      if function-value = 3 [ set destination-type "west" ]
+      if function-value = 4 [ set destination-type "south" ]
     ]
   ]
+  ]
 end
-
 
 to assign-destinations
-  ;; Ask pedestrians to assign destinations
-  ask peds [
-    let chosen-destination one-of destinations
-    if chosen-destination != nobody [
-      set my-destination chosen-destination
-    ]
-    if chosen-destination = nobody [
-      print "No valid destination found for ped"
-    ]
-  ]
+  ask turtles [
+    ;; Weighted selection of destination patches
+    let preferred-destinations patches with [destination-type = "east" or destination-type = "north" or destination-type = "west" or destination-type = "south"]
+    let other-destinations patches with [destination-type = 0]  ;; Non-preferred destinations
 
-  ;; Ask bikes to assign destinations
-  ask bikes [
-    let chosen-destination one-of destinations
-    if chosen-destination != nobody [
-      set my-destination chosen-destination
+    ;; Assign a destination with higher probability for preferred ones
+    if random-float 1 < 0.8 [  ;; 80% chance to pick preferred destinations
+      set my-destination one-of preferred-destinations
     ]
-    if chosen-destination = nobody [
-      print "No valid destination found for bike"
+    if random-float 1 > 0.8 [
+      set my-destination one-of other-destinations  ;; 20% chance to pick a random patch
     ]
   ]
 end
 
-;; Compute path to goal
-to compute-path
-  ;; Ask pedestrians to compute paths
-  ask peds [
+
+to move-to-goal
+  ask turtles [
     if my-destination != nobody [
-      show my-destination
-      set path-to-goal nw:path-to my-destination
-    ]
-    if my-destination = nobody [
-      print "No valid destination set for ped"
-    ]
-  ]
-
-  ;; Ask bikes to compute paths
-  ask bikes [
-    if my-destination != nobody [
-      show my-destination
-      set path-to-goal nw:path-to my-destination
-    ]
-    if my-destination = nobody [
-      print "No valid destination set for bike"
+      ;; Query the coordinates of my-destination
+      let dest-x [pxcor] of my-destination
+      let dest-y [pycor] of my-destination
+      ;; Calculate the next step by finding the neighbor patch closest to the turtle's destination coordinates
+      let next-step min-one-of neighbors [distancexy dest-x dest-y]
+      if next-step != nobody [ move-to next-step ]
     ]
   ]
 end
 
-;; Make agent move along path while avoiding obstacles
-to move-along-path
-  ask turtles with [ path-to-goal != [] ] [
-    set current-target first path-to-goal  ;; Next step in the path
-    face current-target  ;; Turn towards it
-    move-to current-target  ;; Move there
-    set path-to-goal but-first path-to-goal  ;; Remove visited step
-  ]
-end
+
+
 
 ;; Define obstacles: pillars and people who are not moving
 to define-obstacles
@@ -206,8 +188,6 @@ to set-peds
       set break-timer 0 ; Timer for taking a break
       ; Assign a goal
       assign-destinations
-      compute-path
-
     ]
   ]
 end
@@ -225,12 +205,11 @@ to set-bikes
       set break-timer 0 ; Timer for taking a break
       ; Assign a goal
       assign-destinations
-      compute-path
     ]
   ]
 end
 
-;; Make agents move following obstacle avoduance and sftT
+;; Make agents move following obstacle avoidance and sftT
 
 to move
   if ticks >= 3600 [ stop ] ;; Stops the simulation after 3600 ticks
@@ -273,7 +252,7 @@ to move
       ;; Check if current-target is valid before using towards
       let desired-movement 0 ;; Default to 0 (no movement if no target)
       if current-target != nobody [
-        set desired-movement towards current-target
+        set desired-movement towards my-destination
       ]
 
       ;; Adjust movement with repulsion and path-following
@@ -283,7 +262,7 @@ to move
       move-to patch-at (xcor + speedx * dt) (ycor + speedy * dt)
 
       ; Check for break
-      check-for-break self
+     ; check-for-break self
     ]
     if state = 0 [
       ; When state is 0, ensure the agent doesn't move
@@ -333,7 +312,7 @@ to move
       ;; Check if current-target is valid before using towards
       let desired-movement 0 ;; Default to 0 (no movement if no target)
       if current-target != nobody [
-        set desired-movement towards current-target
+        set desired-movement towards my-destination
       ]
 
       ;; Adjust movement while preserving angular inertia
@@ -347,7 +326,7 @@ to move
       move-to patch-at (xcor + speedx * dt) (ycor + speedy * dt)
 
       ; Check for break
-      check-for-break self
+    ;  check-for-break self
     ]
      if state = 0  [
       ; When state is 0, ensure the agent doesn't move
@@ -360,36 +339,12 @@ to move
       ]
     ]
   ]
+  move-to-goal
   check-conflict
   report-conflicts
   update-stats-and-flow
 end
-;; Check for breaks
 
-to check-for-break [agent]
-  let my-polygon nobody
-  foreach gis:feature-list-of dataset [
-    [feature] ->
-    if gis:intersects? patch-here feature [
-      set my-polygon feature
-    ]
-  ]
-  if my-polygon != nobody [
-    let polygon-id gis:property-value my-polygon "ID"
-    let break-probability 0
-    if member? polygon-id [6 7 8 9] [
-      set break-probability 0.4 ; Higher probability in polygons 6, 7, 8, 9
-    ]
-    if member? polygon-id [2 3 4 5] [
-      set break-probability 0.1 ; Lower probability in polygons 2, 3, 4, 5
-    ]
-
-    if random-float 1 < break-probability [
-      set state 0
-      set break-timer random 5 + 1 ; Random break duration between 1 and 5
-    ]
-  ]
-end
 
 ;; Define the study area
 to-report is-in-study-area? [candidate-patch]
@@ -404,18 +359,6 @@ to-report is-in-study-area? [candidate-patch]
   report in-area?
 end
 
-;; Define destination area
-to-report is-in-goal-area? [destination-patch]
-  let in-goal? false
-  foreach gis:feature-list-of dataset [
-    [feature] ->
-    let polygon-id gis:property-value feature "ID"
-    if polygon-id = 365 and gis:intersects? destination-patch feature [
-      set in-goal? true
-    ]
-  ]
-  report in-goal?
-end
 
 to define-polygons
   set polygons [
