@@ -48,41 +48,144 @@ end
 
 to classify-destination-patches
   ask patches [
-     foreach gis:feature-list-of destination-features [
-    [feature] ->
-    ;; Get the function value of the polygon
-    let function-value gis:property-value feature "function"
+    ; Debugging information
+    print self
+    foreach gis:feature-list-of dataset [
+      [feature] ->
+      ;; Get the function value of the polygon
+      let function-value gis:property-value feature "function"
 
-    ;; Assign function-value to patches that intersect with the feature
-    ask patches with [ gis:intersects? self feature ] [
-      if function-value = 1 [ set destination-type "east" ]
-      if function-value = 2 [ set destination-type "north" ]
-      if function-value = 3 [ set destination-type "west" ]
-      if function-value = 4 [ set destination-type "south" ]
+      ;; Assign function-value to patches that intersect with the feature
+      ask patches with [ gis:intersects? self feature ] [
+        if function-value = 1 [ set destination-type "east" ]
+        if function-value = 2 [ set destination-type "north" ]
+        if function-value = 3 [ set destination-type "west" ]
+        if function-value = 4 [ set destination-type "south" ]
+      ]
     ]
-  ]
   ]
 end
 
+to spawn-peds
+  if ticks mod spawning_rate_N = 0 [
+    repeat (spawning_rate_N) [
+      create-peds 1 [
+        move-to one-of patches with [gis:property-value gis:feature-list-of dataset "function" = 1]
+        set state 1
+        set break-timer 0
+        assign-destinations
+      ]
+    ]
+  ]
+  if ticks mod spawning_rate_S = 0 [
+    repeat (spawning_rate_S) [
+      create-peds 1 [
+        move-to one-of patches with [gis:property-value gis:feature-list-of dataset "function" = 2]
+        set state 1
+        set break-timer 0
+        assign-destinations
+      ]
+    ]
+  ]
+  if ticks mod spawning_rate_E = 0 [
+    repeat (spawning_rate_E) [
+      create-peds 1 [
+        move-to one-of patches with [gis:property-value gis:feature-list-of dataset "function" = 3]
+        set state 1
+        set break-timer 0
+        assign-destinations
+      ]
+    ]
+  ]
+  if ticks mod spawning_rate_W = 0 [
+    repeat (spawning_rate_W) [
+      create-peds 1 [
+        move-to one-of patches with [gis:property-value gis:feature-list-of dataset "function" = 4]
+        set state 1
+        set break-timer 0
+        assign-destinations
+      ]
+    ]
+  ]
+end
+
+
 to assign-destinations
-  ask turtles [
-    ;; Weighted selection of destination patches
+  ask peds [
     let preferred-destinations patches with [destination-type = "east" or destination-type = "north" or destination-type = "west" or destination-type = "south"]
     let other-destinations patches with [destination-type = 0]  ;; Non-preferred destinations
 
-    ;; Assign a destination with higher probability for preferred ones
-    if random-float 1 < 0.8 [  ;; 80% chance to pick preferred destinations
-      set my-destination one-of preferred-destinations
+    ;; Adjust destination probabilities based on sliders
+    let prob_n destinationprob_N
+    let prob_s destinationprob_S
+    let prob_e destinationprob_e
+    let prob_w destinationprob_W
+
+    ;; Weighted selection of destination patches with slider-based probabilities
+    if random-float 1 < prob_n [
+      set my-destination one-of patches with [destination-type = "north"]
     ]
-    if random-float 1 > 0.8 [
-      set my-destination one-of other-destinations  ;; 20% chance to pick a random patch
+    if random-float 1 < prob_s [
+      set my-destination one-of patches with [destination-type = "south"]
+    ]
+    if random-float 1 < prob_e [
+      set my-destination one-of patches with [destination-type = "east"]
+    ]
+    if random-float 1 < prob_w [
+      set my-destination one-of patches with [destination-type = "west"]
+    ]
+
+    ;; Assign a random patch from the non-preferred set if the above conditions are not met
+    if my-destination = nobody [
+      set my-destination one-of other-destinations
+    ]
+  ]
+
+  ask bikes [
+    let preferred-destinations patches with [destination-type = "east" or destination-type = "north" or destination-type = "west" or destination-type = "south"]
+    let other-destinations patches with [destination-type = 0]  ;; Non-preferred destinations
+
+    ;; Adjust destination probabilities based on sliders
+    let prob_n destinationprob_N
+    let prob_s destinationprob_S
+    let prob_e destinationprob_e
+    let prob_w destinationprob_W
+
+    ;; Weighted selection of destination patches with slider-based probabilities
+    if random-float 1 < prob_n [
+      set my-destination one-of patches with [destination-type = "north"]
+    ]
+    if random-float 1 < prob_s [
+      set my-destination one-of patches with [destination-type = "south"]
+    ]
+    if random-float 1 < prob_e [
+      set my-destination one-of patches with [destination-type = "east"]
+    ]
+    if random-float 1 < prob_w [
+      set my-destination one-of patches with [destination-type = "west"]
+    ]
+
+    ;; Assign a random patch from the non-preferred set if the above conditions are not met
+    if my-destination = nobody [
+      set my-destination one-of other-destinations
     ]
   ]
 end
 
 
 to move-to-goal
-  ask turtles [
+  ask peds [
+    if my-destination != nobody [
+      ;; Query the coordinates of my-destination
+      let dest-x [pxcor] of my-destination
+      let dest-y [pycor] of my-destination
+      ;; Calculate the next step by finding the neighbor patch closest to the turtle's destination coordinates
+      let next-step min-one-of neighbors [distancexy dest-x dest-y]
+      if next-step != nobody [ move-to next-step ]
+    ]
+  ]
+
+  ask bikes [
     if my-destination != nobody [
       ;; Query the coordinates of my-destination
       let dest-x [pxcor] of my-destination
@@ -181,9 +284,9 @@ to set-peds
       set color cyan
       set size 0.3
 
-
-      ; Spawn agents at the sides of the simulation
-      move-to one-of patches with [is-in-study-area? self and (pxcor = min-pxcor or pxcor = max-pxcor or pycor = min-pycor or pycor = max-pycor)]; start from side of polygon
+      ; Spawn agents in one of the patches with geojson feature
+      let spawn-area one-of patches with [gis:property-value gis:feature-list-of dataset "function" = 1 or gis:property-value gis:feature-list-of dataset "function" = 2 or gis:property-value gis:feature-list-of dataset "function" = 3 or gis:property-value gis:feature-list-of dataset "function" = 4]
+      move-to spawn-area ; Spawn from geojson feature
       set state 1 ; Actively moving by default
       set break-timer 0 ; Timer for taking a break
       ; Assign a goal
@@ -192,15 +295,16 @@ to set-peds
   ]
 end
 
-;; Initialize bikes
 to set-bikes
   repeat Nb-bikes [
     create-bikes 1 [
       set shape "circle"
       set color magenta
       set size 0.42
-      ; Spawn agents at the sides of the simulation
-      move-to one-of patches with [is-in-study-area? self and (pxcor = min-pxcor or pxcor = max-pxcor or pycor = min-pycor or pycor = max-pycor)]
+
+      ; Spawn agents in one of the patches with geojson feature
+      let spawn-area one-of patches with [gis:property-value gis:feature-list-of dataset "function" = 1 or gis:property-value gis:feature-list-of dataset "function" = 2 or gis:property-value gis:feature-list-of dataset "function" = 3 or gis:property-value gis:feature-list-of dataset "function" = 4]
+      move-to spawn-area ; Spawn from geojson feature
       set state 1 ; Actively moving by default
       set break-timer 0 ; Timer for taking a break
       ; Assign a goal
@@ -208,6 +312,7 @@ to set-bikes
     ]
   ]
 end
+
 
 ;; Make agents move following obstacle avoidance and sftT
 
@@ -219,6 +324,7 @@ to move
   ;; Pedestrians
   ask peds [
     if state = 1 [
+      ;; Initialize repulsion forces
       let repx 0
       let repy 0
       let h hd1
@@ -228,15 +334,15 @@ to move
       ask (other peds in-radius (2 * D)) [
         let dist-ped distance myself
         if dist-ped > 0 [
-          set repx repx + A * exp((1 - d) / D) * sin(towards myself) * (1 - cos(towards myself - h))
-          set repy repy + A * exp((1 - d) / D) * cos(towards myself) * (1 - cos(towards myself - h))
+          set repx repx + A * exp((1 - dist-ped) / D) * sin(towards myself) * (1 - cos(towards myself - h))
+          set repy repy + A * exp((1 - dist-ped) / D) * cos(towards myself) * (1 - cos(towards myself - h))
         ]
       ]
       ask (bikes in-radius (2 * D)) [
         let dist-bike distance myself
         if dist-bike > 0 [
-          set repx repx + A * exp((1 - d) / D) * sin(towards myself)
-          set repy repy + A * exp((1 - d) / D) * cos(towards myself)
+          set repx repx + A * exp((1 - dist-bike) / D) * sin(towards myself)
+          set repy repy + A * exp((1 - dist-bike) / D) * cos(towards myself)
         ]
       ]
 
@@ -244,34 +350,47 @@ to move
       ask patches with [obstacle?] in-radius (1.5 * D) [
         let dist-obs distance myself
         if dist-obs > 0 [
-          set repx repx + A * exp((1 - d) / D) * sin(towards myself)
-          set repy repy + A * exp((1 - d) / D) * cos(towards myself)
+          set repx repx + A * exp((1 - dist-obs) / D) * sin(towards myself)
+          set repy repy + A * exp((1 - dist-obs) / D) * cos(towards myself)
         ]
       ]
 
       ;; Check if current-target is valid before using towards
       let desired-movement 0 ;; Default to 0 (no movement if no target)
-      if current-target != nobody [
-        set desired-movement towards my-destination
+      if my-destination != nobody [
+        let target-x [pxcor] of my-destination
+        let target-y [pycor] of my-destination
+
+        ;; Only set desired-movement if the agent is not already at the destination
+        if (xcor != target-x or ycor != target-y) [
+          set desired-movement towardsxy target-x target-y
+        ]
       ]
 
       ;; Adjust movement with repulsion and path-following
       set speedx speedx + dt * (repx + (V0 * sin desired-movement - speedx) / Tr)
       set speedy speedy + dt * (repy + (V0 * cos desired-movement - speedy) / Tr)
 
+      ;; Update heading
+      set heading towards my-destination
+
+      ;; Move agent based on computed speeds
       move-to patch-at (xcor + speedx * dt) (ycor + speedy * dt)
 
-      ; Check for break
-     ; check-for-break self
+      ;; Check for break
+      ;; check-for-break self
     ]
+
+    ;; Handle state 0: Pedestrian is on a break (not moving)
     if state = 0 [
-      ; When state is 0, ensure the agent doesn't move
+      ;; Ensure the agent remains stationary
       set speedx 0
       set speedy 0
-      ; Countdown the break timer
+
+      ;; Countdown break timer
       set break-timer break-timer - 1
       if break-timer <= 0 [
-        set state 1 ; Resume movement
+        set state 1 ;; Resume movement after the break
       ]
     ]
   ]
@@ -279,6 +398,7 @@ to move
   ;; Bikes
   ask bikes [
     if state = 1 [
+      ;; Initialize repulsion forces
       let repx 0
       let repy 0
       let h hd1
@@ -288,15 +408,15 @@ to move
       ask (other bikes in-radius (3 * D)) [
         let dist-bike distance myself
         if dist-bike > 0 [
-          set repx repx + A * exp((1 - d) / D) * sin(towards myself) * (1 - 0.5 * cos(towards myself - h))
-          set repy repy + A * exp((1 - d) / D) * cos(towards myself) * (1 - 0.5 * cos(towards myself - h))
+          set repx repx + A * exp((1 - dist-bike) / D) * sin(towards myself) * (1 - 0.5 * cos(towards myself - h))
+          set repy repy + A * exp((1 - dist-bike) / D) * cos(towards myself) * (1 - 0.5 * cos(towards myself - h))
         ]
       ]
       ask (peds in-radius (3 * D)) [
         let dist-ped distance myself
         if dist-ped > 0 [
-          set repx repx + A * exp((1 - d) / D) * sin(towards myself)
-          set repy repy + A * exp((1 - d) / D) * cos(towards myself)
+          set repx repx + A * exp((1 - dist-ped) / D) * sin(towards myself)
+          set repy repy + A * exp((1 - dist-ped) / D) * cos(towards myself)
         ]
       ]
 
@@ -304,15 +424,21 @@ to move
       ask patches with [obstacle?] in-radius (1.5 * D) [
         let dist-obs distance myself
         if dist-obs > 0 [
-          set repx repx + A * exp((1 - d) / D) * sin(towards myself)
-          set repy repy + A * exp((1 - d) / D) * cos(towards myself)
+          set repx repx + A * exp((1 - dist-obs) / D) * sin(towards myself)
+          set repy repy + A * exp((1 - dist-obs) / D) * cos(towards myself)
         ]
       ]
 
       ;; Check if current-target is valid before using towards
       let desired-movement 0 ;; Default to 0 (no movement if no target)
-      if current-target != nobody [
-        set desired-movement towards my-destination
+      if my-destination != nobody [
+        let target-x [pxcor] of my-destination
+        let target-y [pycor] of my-destination
+
+        ;; Only set desired-movement if the agent is not already at the destination
+        if (xcor != target-x or ycor != target-y) [
+          set desired-movement towardsxy target-x target-y
+        ]
       ]
 
       ;; Adjust movement while preserving angular inertia
@@ -320,25 +446,31 @@ to move
       set speedy speedy + dt * (repy + (V0 * cos desired-movement - speedy) / (Tr * 2))
 
       ;; Angular inertia: smooth direction changes
-      let new-heading atan speedx speedy
+      let new-heading towards my-destination
       set heading heading + (new-heading - heading) * 0.2 ;; Gradual turn adjustment
 
+      ;; Move bike based on computed speeds
       move-to patch-at (xcor + speedx * dt) (ycor + speedy * dt)
 
-      ; Check for break
-    ;  check-for-break self
+      ;; Check for break
+      ;; check-for-break self
     ]
-     if state = 0  [
-      ; When state is 0, ensure the agent doesn't move
+
+    ;; Handle state 0: Bike is on a break (not moving)
+    if state = 0 [
+      ;; Ensure the bike remains stationary
       set speedx 0
       set speedy 0
-      ; Countdown the break timer
+
+      ;; Countdown break timer
       set break-timer break-timer - 1
       if break-timer <= 0 [
-        set state 1 ; Resume movement
+        set state 1 ;; Resume movement after the break
       ]
     ]
   ]
+
+  ;; Additional simulation updates
   move-to-goal
   check-conflict
   report-conflicts
@@ -346,13 +478,16 @@ to move
 end
 
 
+
+
+
 ;; Define the study area
-to-report is-in-study-area? [candidate-patch]
+to-report is-in-study-area? [study-patch]
   let in-area? false
   foreach gis:feature-list-of dataset [
     [feature] ->
-    let polygon-id gis:property-value feature "ID"
-    if (polygon-id = 1) and gis:intersects? candidate-patch feature [
+    let function-value gis:property-value feature "function"
+    if (function-value = 0 or function-value = 1 or function-value = 2 or function-value = 3 or function-value = 4 or function-value = 666) and gis:intersects? study-patch feature [
       set in-area? true
     ]
   ]
@@ -822,6 +957,126 @@ Nb-Bikes
 0
 300
 100.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+1
+106
+173
+139
+spawning_rate_N
+spawning_rate_N
+0
+500
+50.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+0
+146
+172
+179
+spawning_rate_S
+spawning_rate_S
+0
+100
+50.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+7
+193
+179
+226
+spawning_rate_E
+spawning_rate_E
+0
+100
+50.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+0
+238
+172
+271
+spawning_rate_W
+spawning_rate_W
+0
+100
+51.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+39
+287
+211
+320
+destinationprob_N
+destinationprob_N
+0
+100
+50.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+65
+374
+237
+407
+destinationprob_S
+destinationprob_S
+0
+100
+50.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+89
+346
+261
+379
+destinationprob_e
+destinationprob_e
+0
+100
+50.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+36
+331
+208
+364
+destinationprob_W
+destinationprob_W
+0
+100
+50.0
 1
 1
 NIL
