@@ -8,13 +8,14 @@ extensions [gis table]
 breed [peds ped]
 breed [bikes bike]
 
-globals [destination-features conflict-table time mean-speed stddev-speed flow-cum polygons dataset wgs84-dataset core-area-patches d study-area-patches goal-patches-list]
+globals [destination-features conflict-table time mean-speed stddev-speed flow-cum polygons dataset wgs84-dataset d study-area-patches]
 peds-own [speedx speedy state break-timer goal path-to-goal my-destination current-target]
 bikes-own [speedx speedy state break-timer goal path-to-goal my-destination current-target ]
 patches-own [ obstacle? destination-type]
 
-;; Setup the Environment
+;; Part 1: Setup the Environment
 
+; Setup modelling environment
 to setup
   clear-all
   reset-ticks
@@ -47,27 +48,7 @@ to setup
     spawn-agents
 end
 
-
-to classify-destination-patches
-  ask patches [
-    ; Debugging information
-    print self
-    foreach gis:feature-list-of dataset [
-      [feature] ->
-      ;; Get the function value of the polygon
-      let function-value gis:property-value feature "function"
-
-      ;; Assign function-value to patches that intersect with the feature
-      ask patches with [ gis:intersects? self feature ] [
-        if function-value = 1 [ set destination-type "east" ]
-        if function-value = 2 [ set destination-type "north" ]
-        if function-value = 3 [ set destination-type "west" ]
-        if function-value = 4 [ set destination-type "south" ]
-      ]
-    ]
-  ]
-end
-
+;; Rules for spawning
 to spawn-agents
   ;; Spawn pedestrians from function areas 1,2,3,4 according to sliders
   repeat spawning_rate_N [
@@ -184,7 +165,7 @@ to spawn-agents
   ]
 end
 
-
+;; Assign destinations
 to assign-destinations
   ask peds [
     let preferred-destinations patches with [destination-type = "east" or destination-type = "north" or destination-type = "west" or destination-type = "south"]
@@ -247,7 +228,9 @@ to assign-destinations
   ]
 end
 
+;; Part 2: Multilayered approach to modelling
 
+;; Pathfinding Layer
 to move-to-goal
   ask peds [
     if my-destination != nobody [
@@ -273,87 +256,7 @@ to move-to-goal
 end
 
 
-
-
-;; Define obstacles: pillars and people who are not moving
-to define-obstacles
-  ask patches [
-    set obstacle? false
-    let my-polygon nobody
-    foreach gis:feature-list-of dataset [
-      [feature] ->
-      if gis:intersects? self feature [
-        set my-polygon feature
-      ]
-    ]
-    ; Define pillars as obstacles
-    if my-polygon != nobody [
-      let polygon-id gis:property-value my-polygon "ID"
-      if polygon-id = 999 [
-        set obstacle? true
-        set pcolor pink  ;; Mark obstacles visually
-      ]
-    ]
-  ]
-
-  ; Mark agents with state = 0 as obstacles
-  ask peds with [state = 0] [
-    set obstacle? true
-    set color white  ;; Mark resting pedestrians visually
-  ]
-end
-
-; Check conflict ins tudy area
-to check-conflict
-  ask turtles [
-    let my-polygon nobody
-    foreach gis:feature-list-of dataset [
-      [feature] ->
-      if gis:intersects? patch-here feature [
-        set my-polygon feature
-      ]
-    ]
-
-    ;; Only proceed if the turtle is in a relevant polygon
-    if my-polygon != nobody [
-      let polygon-id gis:property-value my-polygon "ID"
-      if member? polygon-id [2 3 4 5 6 7 8 9] [
-        let severe-count 0
-        let moderate-count 0
-        let mild-count 0
-
-        ;; Check all other agents
-        ask other turtles [
-          let distancetoother distance myself  ;; Calculate distance between agents
-
-          ;; Categorize conflict severity
-          if distancetoother <= 1.5 [set severe-count severe-count + 1]
-          if distancetoother > 1.5 and d <= 2.5 [set moderate-count moderate-count + 1]
-          if distancetoother > 2.5 and d <= 3.5 [set mild-count mild-count + 1]
-        ]
-
-        ;; Store results in the table
-        ifelse table:has-key? conflict-table polygon-id [
-          ;; Get old values and update them
-          let old-values table:get conflict-table polygon-id
-          table:put conflict-table polygon-id (list
-            (item 0 old-values + severe-count)
-            (item 1 old-values + moderate-count)
-            (item 2 old-values + mild-count)
-          )
-        ]
-        [
-          ;; If polygon ID is not in the table yet, add it
-          table:put conflict-table polygon-id (list severe-count moderate-count mild-count)
-        ]
-      ]
-    ]
-  ]
-end
-
-
-;; Make agents move following obstacle avoidance and sftT
-
+;; Interaction and Obstacle Layer
 to move
   if ticks >= 3600 [ stop ] ;; Stops the simulation after 3600 ticks
   set time precision (time + dt) 5
@@ -516,7 +419,7 @@ to move
 end
 
 
-
+;; Part 3: Define the spatial attributes of the model
 
 
 ;; Define the study area
@@ -532,7 +435,28 @@ to-report is-in-study-area? [study-patch]
   report in-area?
 end
 
+;; Define the destination patches in NSEW
+to classify-destination-patches
+  ask patches [
+    ; Debugging information
+    print self
+    foreach gis:feature-list-of dataset [
+      [feature] ->
+      ;; Get the function value of the polygon
+      let function-value gis:property-value feature "function"
 
+      ;; Assign function-value to patches that intersect with the feature
+      ask patches with [ gis:intersects? self feature ] [
+        if function-value = 1 [ set destination-type "east" ]
+        if function-value = 2 [ set destination-type "north" ]
+        if function-value = 3 [ set destination-type "west" ]
+        if function-value = 4 [ set destination-type "south" ]
+      ]
+    ]
+  ]
+end
+
+;; Define different areas for output and waiting areas
 to define-polygons
   set polygons [
     ;; Polygon A
@@ -585,6 +509,37 @@ to define-polygons
   ]
 end
 
+;; Define obstacles: pillars and people who are not moving
+to define-obstacles
+  ask patches [
+    set obstacle? false
+    let my-polygon nobody
+    foreach gis:feature-list-of dataset [
+      [feature] ->
+      if gis:intersects? self feature [
+        set my-polygon feature
+      ]
+    ]
+    ; Define pillars as obstacles
+    if my-polygon != nobody [
+      let polygon-id gis:property-value my-polygon "ID"
+      if polygon-id = 999 [
+        set obstacle? true
+        set pcolor pink  ;; Mark obstacles visually
+      ]
+    ]
+  ]
+
+  ; Mark agents with state = 0 as obstacles
+  ask peds with [state = 0] [
+    set obstacle? true
+    set color white  ;; Mark resting pedestrians visually
+  ]
+end
+
+
+;; Part 4: Log the outcomes of each simulation
+
 ;; Define outputs
 to update-stats-and-flow
   let peds-with-speed [ self ] of peds with [state > -1]
@@ -632,7 +587,55 @@ to update-stats-and-flow
   plot! ; Update the plots
 end
 
-; Output conflict
+;; Check conflict in  study area
+to check-conflict
+  ask turtles [
+    let my-polygon nobody
+    foreach gis:feature-list-of dataset [
+      [feature] ->
+      if gis:intersects? patch-here feature [
+        set my-polygon feature
+      ]
+    ]
+
+    ;; Only proceed if the turtle is in a relevant polygon
+    if my-polygon != nobody [
+      let polygon-id gis:property-value my-polygon "ID"
+      if member? polygon-id [2 3 4 5 6 7 8 9] [
+        let severe-count 0
+        let moderate-count 0
+        let mild-count 0
+
+        ;; Check all other agents
+        ask other turtles [
+          let distancetoother distance myself  ;; Calculate distance between agents
+
+          ;; Categorize conflict severity
+          if distancetoother <= 1.5 [set severe-count severe-count + 1]
+          if distancetoother > 1.5 and d <= 2.5 [set moderate-count moderate-count + 1]
+          if distancetoother > 2.5 and d <= 3.5 [set mild-count mild-count + 1]
+        ]
+
+        ;; Store results in the table
+        ifelse table:has-key? conflict-table polygon-id [
+          ;; Get old values and update them
+          let old-values table:get conflict-table polygon-id
+          table:put conflict-table polygon-id (list
+            (item 0 old-values + severe-count)
+            (item 1 old-values + moderate-count)
+            (item 2 old-values + mild-count)
+          )
+        ]
+        [
+          ;; If polygon ID is not in the table yet, add it
+          table:put conflict-table polygon-id (list severe-count moderate-count mild-count)
+        ]
+      ]
+    ]
+  ]
+end
+
+;; Output conflict
 to report-conflicts
   print "Polygon ID | Severe | Moderate | Mild"
   foreach table:keys conflict-table [
@@ -640,7 +643,6 @@ to report-conflicts
     print (word ? " | " item 0 data " | " item 1 data " | " item 2 data)
   ]
 end
-
 
 
 ;; Plot your output!
@@ -661,8 +663,8 @@ end
 GRAPHICS-WINDOW
 542
 11
-612
-40
+1398
+868
 -1
 -1
 20.933333333333334
@@ -675,10 +677,10 @@ GRAPHICS-WINDOW
 1
 1
 1
--1
-1
-0
-0
+-20
+20
+-20
+20
 0
 0
 1
