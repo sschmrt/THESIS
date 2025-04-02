@@ -27,11 +27,13 @@ to setup
   gis:set-drawing-color red
   gis:draw dataset 0.1 ;
 
+
  ; Identify patches in study area
   set study-area-patches patches with [is-in-study-area? self]
 
   ; Classify destination patches
   classify-destination-patches
+
 
  ; Mark these patches for visualization and restrict agent movement
   define-obstacles
@@ -42,9 +44,9 @@ to setup
     set Nb-peds 100
     set Nb-bikes 100
     set dt 0.05
-    set-peds
-    set-bikes
+    spawn-agents
 end
+
 
 to classify-destination-patches
   ask patches [
@@ -66,43 +68,116 @@ to classify-destination-patches
   ]
 end
 
-to spawn-peds
-  if ticks mod spawning_rate_N = 0 [
-    repeat (spawning_rate_N) [
+to spawn-agents
+  ;; Spawn pedestrians from function areas 1,2,3,4 according to sliders
+  repeat spawning_rate_N [
+    if any? patches with [destination-type = "north"] [
       create-peds 1 [
-        move-to one-of patches with [gis:property-value gis:feature-list-of dataset "function" = 1]
+        move-to one-of patches with [destination-type = "north"]
         set state 1
         set break-timer 0
+        set shape "circle"
+        set color cyan
+        set size 0.3
         assign-destinations
       ]
     ]
   ]
-  if ticks mod spawning_rate_S = 0 [
-    repeat (spawning_rate_S) [
+
+  repeat spawning_rate_S [
+    if any? patches with [destination-type = "south"] [
       create-peds 1 [
-        move-to one-of patches with [gis:property-value gis:feature-list-of dataset "function" = 2]
+         move-to one-of patches with [destination-type = "south"]
         set state 1
         set break-timer 0
+        set shape "circle"
+        set color cyan
+        set size 0.3
         assign-destinations
       ]
     ]
   ]
-  if ticks mod spawning_rate_E = 0 [
-    repeat (spawning_rate_E) [
+
+  repeat spawning_rate_E [
+    if any? patches with [destination-type = "east"] [
       create-peds 1 [
-        move-to one-of patches with [gis:property-value gis:feature-list-of dataset "function" = 3]
+         move-to one-of patches with [destination-type = "east"]
         set state 1
         set break-timer 0
+        set shape "circle"
+        set color cyan
+        set size 0.3
         assign-destinations
       ]
     ]
   ]
-  if ticks mod spawning_rate_W = 0 [
-    repeat (spawning_rate_W) [
+
+  repeat spawning_rate_W [
+   if any? patches with [destination-type = "west"] [
       create-peds 1 [
-        move-to one-of patches with [gis:property-value gis:feature-list-of dataset "function" = 4]
+       move-to one-of patches with [destination-type = "west"]
         set state 1
         set break-timer 0
+        set shape "circle"
+        set color cyan
+        set size 0.3
+        assign-destinations
+      ]
+    ]
+  ]
+
+  ;; Spawn bikes from function areas 1,2,3,4 according to sliders
+  repeat spawning_rate_N [
+    if any? patches with [destination-type = "north"] [
+      create-bikes 1 [
+       move-to one-of patches with [destination-type = "north"]
+        set state 1
+        set break-timer 0
+        set shape "circle"
+        set color magenta
+        set size 0.42
+        assign-destinations
+      ]
+    ]
+  ]
+
+  repeat spawning_rate_S [
+    if any? patches with [destination-type = "south"] [
+      create-bikes 1 [
+        move-to one-of patches with [destination-type = "south"]
+        set state 1
+        set break-timer 0
+        set shape "circle"
+        set color magenta
+        set size 0.42
+        assign-destinations
+      ]
+    ]
+  ]
+
+  repeat spawning_rate_E [
+    if any? patches with [destination-type = "east"] [
+      create-bikes 1 [
+        move-to one-of patches with [destination-type = "east"]
+        set state 1
+        set break-timer 0
+        set shape "circle"
+        set color magenta
+        set size 0.42
+        assign-destinations
+      ]
+    ]
+  ]
+
+  repeat spawning_rate_W [
+    if any? patches with [destination-type = "west"] [
+      create-bikes 1 [
+         move-to one-of patches with [destination-type = "west"]
+        set state 1
+        set break-timer 0
+        set shape "circle"
+        set color magenta
+        set size 0.42
         assign-destinations
       ]
     ]
@@ -272,43 +347,6 @@ to check-conflict
           table:put conflict-table polygon-id (list severe-count moderate-count mild-count)
         ]
       ]
-    ]
-  ]
-end
-
-;; Initialize pedestrians
-to set-peds
-  repeat Nb-peds [
-    create-peds 1 [
-      set shape "circle"
-      set color cyan
-      set size 0.3
-
-      ; Spawn agents in one of the patches with geojson feature
-      let spawn-area one-of patches with [gis:property-value gis:feature-list-of dataset "function" = 1 or gis:property-value gis:feature-list-of dataset "function" = 2 or gis:property-value gis:feature-list-of dataset "function" = 3 or gis:property-value gis:feature-list-of dataset "function" = 4]
-      move-to spawn-area ; Spawn from geojson feature
-      set state 1 ; Actively moving by default
-      set break-timer 0 ; Timer for taking a break
-      ; Assign a goal
-      assign-destinations
-    ]
-  ]
-end
-
-to set-bikes
-  repeat Nb-bikes [
-    create-bikes 1 [
-      set shape "circle"
-      set color magenta
-      set size 0.42
-
-      ; Spawn agents in one of the patches with geojson feature
-      let spawn-area one-of patches with [gis:property-value gis:feature-list-of dataset "function" = 1 or gis:property-value gis:feature-list-of dataset "function" = 2 or gis:property-value gis:feature-list-of dataset "function" = 3 or gis:property-value gis:feature-list-of dataset "function" = 4]
-      move-to spawn-area ; Spawn from geojson feature
-      set state 1 ; Actively moving by default
-      set break-timer 0 ; Timer for taking a break
-      ; Assign a goal
-      assign-destinations
     ]
   ]
 end
@@ -623,8 +661,8 @@ end
 GRAPHICS-WINDOW
 542
 11
-864
-334
+612
+40
 -1
 -1
 20.933333333333334
@@ -637,10 +675,10 @@ GRAPHICS-WINDOW
 1
 1
 1
--7
-7
--7
-7
+-1
+1
+0
+0
 0
 0
 1
@@ -881,7 +919,7 @@ A
 A
 0
 5
-2.1
+4.2
 .1
 1
 NIL
