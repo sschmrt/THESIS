@@ -44,15 +44,15 @@ to setup
   ; Initialize variables
   set Nb-peds 100
   set Nb-bikes 100
-  set dt 0.05
+  set dt 1
   spawn-agents
 end
 
 
 ;; Rules for spawning
 to spawn-agents
-  ;; Spawn pedestrians from function areas 1,2,3,4 according to sliders
-  repeat spawning_rate_N [
+  ;; Spawn pedestrians based on probability for each direction
+  if random-float 1 < ped_N [
     if any? patches with [destination-type = "north"] [
       create-peds 1 [
         move-to one-of patches with [destination-type = "north"]
@@ -65,8 +65,7 @@ to spawn-agents
       ]
     ]
   ]
-
-  repeat spawning_rate_S [
+  if random-float 1 < ped_S [
     if any? patches with [destination-type = "south"] [
       create-peds 1 [
          move-to one-of patches with [destination-type = "south"]
@@ -79,8 +78,7 @@ to spawn-agents
       ]
     ]
   ]
-
-  repeat spawning_rate_E [
+  if random-float 1 < ped_E [
     if any? patches with [destination-type = "east"] [
       create-peds 1 [
          move-to one-of patches with [destination-type = "east"]
@@ -93,8 +91,7 @@ to spawn-agents
       ]
     ]
   ]
-
-  repeat spawning_rate_W [
+  if random-float 1 < ped_W [
    if any? patches with [destination-type = "west"] [
       create-peds 1 [
        move-to one-of patches with [destination-type = "west"]
@@ -108,8 +105,8 @@ to spawn-agents
     ]
   ]
 
-  ;; Spawn bikes from function areas 1,2,3,4 according to sliders
-  repeat spawning_rate_N [
+  ;; Spawn bikes based on probability for each direction
+  if random-float 1 < bik_N [
     if any? patches with [destination-type = "north"] [
       create-bikes 1 [
        move-to one-of patches with [destination-type = "north"]
@@ -122,8 +119,7 @@ to spawn-agents
       ]
     ]
   ]
-
-  repeat spawning_rate_S [
+  if random-float 1 < bik_S [
     if any? patches with [destination-type = "south"] [
       create-bikes 1 [
         move-to one-of patches with [destination-type = "south"]
@@ -136,8 +132,7 @@ to spawn-agents
       ]
     ]
   ]
-
-  repeat spawning_rate_E [
+  if random-float 1 < bik_E [
     if any? patches with [destination-type = "east"] [
       create-bikes 1 [
         move-to one-of patches with [destination-type = "east"]
@@ -150,8 +145,7 @@ to spawn-agents
       ]
     ]
   ]
-
-  repeat spawning_rate_W [
+  if random-float 1 < bik_W [
     if any? patches with [destination-type = "west"] [
       create-bikes 1 [
          move-to one-of patches with [destination-type = "west"]
@@ -170,61 +164,42 @@ end
 to assign-destinations
   ask peds [
     let preferred-destinations patches with [destination-type = "east" or destination-type = "north" or destination-type = "west" or destination-type = "south"]
-    let other-destinations patches with [destination-type = 0]  ;; Non-preferred destinations
 
-    ;; Adjust destination probabilities based on sliders
-    let prob_n destinationprob_N
-    let prob_s destinationprob_S
-    let prob_e destinationprob_e
-    let prob_w destinationprob_W
 
     ;; Weighted selection of destination patches with slider-based probabilities
-    if random-float 1 < prob_n [
+    if random-float 1 < ped_n [
       set my-destination one-of patches with [destination-type = "north"]
     ]
-    if random-float 1 < prob_s [
+    if random-float 1 < ped_s [
       set my-destination one-of patches with [destination-type = "south"]
     ]
-    if random-float 1 < prob_e [
+    if random-float 1 < ped_e [
       set my-destination one-of patches with [destination-type = "east"]
     ]
-    if random-float 1 < prob_w [
+    if random-float 1 < ped_w [
       set my-destination one-of patches with [destination-type = "west"]
     ]
 
-    ;; Assign a random patch from the non-preferred set if the above conditions are not met
-    if my-destination = nobody [
-      set my-destination one-of other-destinations
+
     ]
-  ]
+
 
   ask bikes [
     let preferred-destinations patches with [destination-type = "east" or destination-type = "north" or destination-type = "west" or destination-type = "south"]
-    let other-destinations patches with [destination-type = 0]  ;; Non-preferred destinations
-
-    ;; Adjust destination probabilities based on sliders
-    let prob_n destinationprob_N
-    let prob_s destinationprob_S
-    let prob_e destinationprob_e
-    let prob_w destinationprob_W
 
     ;; Weighted selection of destination patches with slider-based probabilities
-    if random-float 1 < prob_n [
+    if random-float 1 < bik_n [
       set my-destination one-of patches with [destination-type = "north"]
     ]
-    if random-float 1 < prob_s [
+    if random-float 1 < bik_s [
       set my-destination one-of patches with [destination-type = "south"]
     ]
-    if random-float 1 < prob_e [
+    if random-float 1 < bik_e [
       set my-destination one-of patches with [destination-type = "east"]
     ]
-    if random-float 1 < prob_w [
+    if random-float 1 < bik_w [
       set my-destination one-of patches with [destination-type = "west"]
-    ]
 
-    ;; Assign a random patch from the non-preferred set if the above conditions are not met
-    if my-destination = nobody [
-      set my-destination one-of other-destinations
     ]
   ]
 end
@@ -238,9 +213,16 @@ to move-to-goal
       ;; Query the coordinates of my-destination
       let dest-x [pxcor] of my-destination
       let dest-y [pycor] of my-destination
-      ;; Calculate the next step by finding the neighbor patch closest to the turtle's destination coordinates
-      let next-step min-one-of neighbors [distancexy dest-x dest-y]
-      if next-step != nobody [ move-to next-step ]
+
+      ;; Check if the agent has reached the destination
+      if (xcor = dest-x and ycor = dest-y) [
+        die ;; Remove the agent from the simulation
+      ]
+      if (xcor != dest-x or ycor != dest-y) [
+        ;; Calculate the next step by finding the neighbor patch closest to the turtle's destination coordinates
+        let next-step min-one-of neighbors [distancexy dest-x dest-y]
+        if next-step != nobody [ move-to next-step ]
+      ]
     ]
   ]
 
@@ -249,9 +231,16 @@ to move-to-goal
       ;; Query the coordinates of my-destination
       let dest-x [pxcor] of my-destination
       let dest-y [pycor] of my-destination
-      ;; Calculate the next step by finding the neighbor patch closest to the turtle's destination coordinates
-      let next-step min-one-of neighbors [distancexy dest-x dest-y]
-      if next-step != nobody [ move-to next-step ]
+
+      ;; Check if the agent has reached the destination
+      if (xcor = dest-x and ycor = dest-y) [
+        die ;; Remove the agent from the simulation
+      ]
+      if (xcor != dest-x or ycor != dest-y) [
+        ;; Calculate the next step by finding the neighbor patch closest to the turtle's destination coordinates
+        let next-step min-one-of neighbors [distancexy dest-x dest-y]
+        if next-step != nobody [ move-to next-step ]
+      ]
     ]
   ]
 end
@@ -388,8 +377,10 @@ to move
       set speedy speedy + dt * (repy + (V0 * cos desired-movement - speedy) / (Tr * 2))
 
       ;; Angular inertia: smooth direction changes
+      if my-destination != nobody and (xcor != [pxcor] of my-destination or ycor != [pycor] of my-destination) [
       let new-heading towards my-destination
       set heading heading + (new-heading - heading) * 0.2 ;; Gradual turn adjustment
+      ]
 
       ;; Move bike based on computed speeds
       move-to patch-at (xcor + speedx * dt) (ycor + speedy * dt)
@@ -664,8 +655,8 @@ end
 GRAPHICS-WINDOW
 542
 11
-959
-429
+960
+430
 -1
 -1
 10.0
@@ -1004,72 +995,57 @@ NIL
 HORIZONTAL
 
 SLIDER
-1
-106
-173
-139
-spawning_rate_N
-spawning_rate_N
-0
-500
-52.0
-1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-0
-146
-172
-179
-spawning_rate_S
-spawning_rate_S
-0
-100
-50.0
-1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-7
+21
+116
 193
-179
-226
-spawning_rate_E
-spawning_rate_E
+149
+ped_S
+ped_S
 0
-100
-50.0
 1
+1.0
+.1
 1
 NIL
 HORIZONTAL
 
 SLIDER
 0
-238
+322
 172
-271
-spawning_rate_W
-spawning_rate_W
+355
+ped_N
+ped_N
+0
+1
+1.0
+.1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+81
+229
+253
+262
+ped_E
+ped_E
 0
 100
-51.0
+50.0
 1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-39
+28
+254
+200
 287
-211
-320
-destinationprob_N
-destinationprob_N
+ped_W
+ped_W
 0
 100
 50.0
@@ -1079,27 +1055,12 @@ NIL
 HORIZONTAL
 
 SLIDER
-65
-374
-237
-407
-destinationprob_S
-destinationprob_S
-0
-100
-50.0
-1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-89
+52
 346
-261
+224
 379
-destinationprob_e
-destinationprob_e
+bik_N
+bik_N
 0
 100
 50.0
@@ -1109,12 +1070,42 @@ NIL
 HORIZONTAL
 
 SLIDER
-36
-331
-208
-364
-destinationprob_W
-destinationprob_W
+113
+287
+285
+320
+bik_S
+bik_S
+0
+100
+50.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+53
+385
+225
+418
+bik_E
+bik_E
+0
+100
+50.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+124
+357
+296
+390
+bik_W
+bik_W
 0
 100
 50.0
