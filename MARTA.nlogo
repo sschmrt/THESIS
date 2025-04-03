@@ -8,14 +8,15 @@ extensions [gis table]
 breed [peds ped]
 breed [bikes bike]
 
-globals [destination-features conflict-table time mean-speed stddev-speed flow-cum polygons dataset wgs84-dataset d study-area-patches]
+globals [world-envelope min-x max-x min-y max-y scale-x scale-y destination-features conflict-table time mean-speed stddev-speed flow-cum polygons dataset wgs84-dataset d study-area-patches]
 peds-own [speedx speedy state break-timer goal path-to-goal my-destination current-target]
 bikes-own [speedx speedy state break-timer goal path-to-goal my-destination current-target ]
-patches-own [ obstacle? destination-type]
+patches-own [ obstacle? destination-type function-id]
 
 ;; Part 1: Setup the Environment
 
 ; Setup modelling environment
+; Setup modeling environment
 to setup
   clear-all
   reset-ticks
@@ -24,29 +25,29 @@ to setup
   ; Load the GeoJSON dataset
   set dataset gis:load-dataset "C:/Users/marta/Desktop/THESIS/Thesis_Simple.geojson"
 
-  ; Draw the dataset to visualize it
+  ; Draw dataset for visualization
   gis:set-drawing-color red
-  gis:draw dataset 0.1 ;
+  gis:draw dataset 0.1
 
-
- ; Identify patches in study area
+  ; Identify patches in the study area
   set study-area-patches patches with [is-in-study-area? self]
 
   ; Classify destination patches
   classify-destination-patches
 
-
- ; Mark these patches for visualization and restrict agent movement
+  ; Mark study area patches and restrict movement
   define-obstacles
   ask study-area-patches [
-   set pcolor green
+    set pcolor green
   ]
+
   ; Initialize variables
-    set Nb-peds 100
-    set Nb-bikes 100
-    set dt 0.05
-    spawn-agents
+  set Nb-peds 100
+  set Nb-bikes 100
+  set dt 0.05
+  spawn-agents
 end
+
 
 ;; Rules for spawning
 to spawn-agents
@@ -663,11 +664,11 @@ end
 GRAPHICS-WINDOW
 542
 11
-1398
-868
+959
+429
 -1
 -1
-20.933333333333334
+10.0
 1
 10
 1
@@ -834,10 +835,10 @@ flow-cum / time / world-height
 11
 
 PLOT
-486
-366
-668
-486
+283
+332
+465
+452
 Fundamental diagram
 Density
 Flow
@@ -876,7 +877,7 @@ SWITCH
 219
 cycle?
 cycle?
-1
+0
 1
 -1000
 
@@ -1011,7 +1012,7 @@ spawning_rate_N
 spawning_rate_N
 0
 500
-50.0
+52.0
 1
 1
 NIL
