@@ -24,7 +24,6 @@ to setup
 
   ; Load the GeoJSON dataset
   set dataset gis:load-dataset "C:/Users/marta/Desktop/THESIS/Thesis_Simple.geojson"
-
   ; Draw dataset for visualization
   gis:set-drawing-color red
   gis:draw dataset 0.1
@@ -167,16 +166,16 @@ to assign-destinations
 
 
     ;; Weighted selection of destination patches with slider-based probabilities
-    if random-float 1 < ped_n [
+    if random-float 1 > ped_n [
       set my-destination one-of patches with [destination-type = "north"]
     ]
-    if random-float 1 < ped_s [
+    if random-float 1 > ped_s [
       set my-destination one-of patches with [destination-type = "south"]
     ]
-    if random-float 1 < ped_e [
+    if random-float 1 > ped_e [
       set my-destination one-of patches with [destination-type = "east"]
     ]
-    if random-float 1 < ped_w [
+    if random-float 1 > ped_w [
       set my-destination one-of patches with [destination-type = "west"]
     ]
 
@@ -210,38 +209,17 @@ end
 to move-to-goal
   ask peds [
     if my-destination != nobody [
-      ;; Query the coordinates of my-destination
-      let dest-x [pxcor] of my-destination
-      let dest-y [pycor] of my-destination
-
-      ;; Check if the agent has reached the destination
-      if (xcor = dest-x and ycor = dest-y) [
-        die ;; Remove the agent from the simulation
-      ]
-      if (xcor != dest-x or ycor != dest-y) [
-        ;; Calculate the next step by finding the neighbor patch closest to the turtle's destination coordinates
-        let next-step min-one-of neighbors [distancexy dest-x dest-y]
-        if next-step != nobody [ move-to next-step ]
-      ]
-    ]
+    face my-destination
+    move-to my-destination
+    fd 1
   ]
-
+  ]
   ask bikes [
     if my-destination != nobody [
-      ;; Query the coordinates of my-destination
-      let dest-x [pxcor] of my-destination
-      let dest-y [pycor] of my-destination
-
-      ;; Check if the agent has reached the destination
-      if (xcor = dest-x and ycor = dest-y) [
-        die ;; Remove the agent from the simulation
-      ]
-      if (xcor != dest-x or ycor != dest-y) [
-        ;; Calculate the next step by finding the neighbor patch closest to the turtle's destination coordinates
-        let next-step min-one-of neighbors [distancexy dest-x dest-y]
-        if next-step != nobody [ move-to next-step ]
-      ]
-    ]
+    face my-destination
+    move-to my-destination
+    fd 1
+  ]
   ]
 end
 
@@ -287,20 +265,13 @@ to move
       ]
 
       ;; Check if current-target is valid before using towards
-      let desired-movement 0 ;; Default to 0 (no movement if no target)
       if my-destination != nobody [
-        let target-x [pxcor] of my-destination
-        let target-y [pycor] of my-destination
-
-        ;; Only set desired-movement if the agent is not already at the destination
-        if (xcor != target-x or ycor != target-y) [
-          set desired-movement towardsxy target-x target-y
-        ]
+  face my-destination
       ]
 
       ;; Adjust movement with repulsion and path-following
-      set speedx speedx + dt * (repx + (V0 * sin desired-movement - speedx) / Tr)
-      set speedy speedy + dt * (repy + (V0 * cos desired-movement - speedy) / Tr)
+      set speedx speedx + dt * (repx + (V0 * sin heading - speedx) / Tr)
+      set speedy speedy + dt * (repy + (V0 * cos heading - speedy) / Tr)
 
       ;; Update heading
       set heading towards my-destination
@@ -361,26 +332,19 @@ to move
       ]
 
       ;; Check if current-target is valid before using towards
-      let desired-movement 0 ;; Default to 0 (no movement if no target)
-      if my-destination != nobody [
-        let target-x [pxcor] of my-destination
-        let target-y [pycor] of my-destination
-
-        ;; Only set desired-movement if the agent is not already at the destination
-        if (xcor != target-x or ycor != target-y) [
-          set desired-movement towardsxy target-x target-y
-        ]
-      ]
+     if my-destination != nobody [
+  face my-destination
+]
 
       ;; Adjust movement while preserving angular inertia
-      set speedx speedx + dt * (repx + (V0 * sin desired-movement - speedx) / (Tr * 2))
-      set speedy speedy + dt * (repy + (V0 * cos desired-movement - speedy) / (Tr * 2))
+      set speedx speedx + dt * (repx + (V0 * sin heading - speedx) / (Tr * 2))
+      set speedy speedy + dt * (repy + (V0 * cos heading - speedy) / (Tr * 2))
 
       ;; Angular inertia: smooth direction changes
-      if my-destination != nobody and (xcor != [pxcor] of my-destination or ycor != [pycor] of my-destination) [
-      let new-heading towards my-destination
-      set heading heading + (new-heading - heading) * 0.2 ;; Gradual turn adjustment
-      ]
+     if my-destination != nobody [
+  let desired-heading towards my-destination
+  set heading heading + (desired-heading - heading) * 0.2
+]
 
       ;; Move bike based on computed speeds
       move-to patch-at (xcor + speedx * dt) (ycor + speedy * dt)
@@ -515,7 +479,7 @@ to define-obstacles
     ; Define pillars as obstacles
     if my-polygon != nobody [
       let polygon-id gis:property-value my-polygon "ID"
-      if polygon-id = 999 [
+      if polygon-id = 666 [
         set obstacle? true
         set pcolor pink  ;; Mark obstacles visually
       ]
@@ -881,7 +845,7 @@ dt
 dt
 0
 1
-0.05
+1.0
 .01
 1
 NIL
@@ -1003,7 +967,7 @@ ped_S
 ped_S
 0
 1
-1.0
+0.6
 .1
 1
 NIL
@@ -1033,7 +997,7 @@ ped_E
 ped_E
 0
 100
-50.0
+64.0
 1
 1
 NIL
