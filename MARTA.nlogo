@@ -8,7 +8,7 @@ extensions [gis table]
 breed [peds ped]
 breed [bikes bike]
 
-globals [world-envelope min-x max-x min-y max-y scale-x scale-y destination-features conflict-table time mean-speed stddev-speed flow-cum polygons dataset wgs84-dataset d study-area-patches]
+globals [destination-features conflict-table time mean-speed stddev-speed flow-cum polygons dataset wgs84-dataset study-area-patches]
 peds-own [speedx speedy state break-timer goal path-to-goal my-destination current-target]
 bikes-own [speedx speedy state break-timer goal path-to-goal my-destination current-target ]
 patches-own [ obstacle? destination-type function-id]
@@ -270,8 +270,24 @@ to move
       ]
 
       ;; Adjust movement with repulsion and path-following
-      set speedx speedx + dt * (repx + (V0 * sin heading - speedx) / Tr)
-      set speedy speedy + dt * (repy + (V0 * cos heading - speedy) / Tr)
+      set speedx speedx + dt * (repx + (V0-ped * sin heading - speedx) / Tr)
+      set speedy speedy + dt * (repy + (V0-ped * cos heading - speedy) / Tr)
+
+       ;; Limit Pedestrian Speed
+      let current-speed-mps sqrt (speedx ^ 2 + speedy ^ 2) ; Current speed in meters per second
+      let min-ped-speed-mps (4 / 3.6)             ; Convert 4 km/h to m/s
+      let max-ped-speed-mps (6 / 3.6)             ; Convert 6 km/h to m/s
+
+      if current-speed-mps < min-ped-speed-mps [
+        let scale-factor min-ped-speed-mps / current-speed-mps
+        set speedx speedx * scale-factor
+        set speedy speedy * scale-factor
+      ]
+      if current-speed-mps > max-ped-speed-mps [
+        let scale-factor max-ped-speed-mps / current-speed-mps
+        set speedx speedx * scale-factor
+        set speedy speedy * scale-factor
+      ]
 
       ;; Update heading
       set heading towards my-destination
@@ -337,8 +353,25 @@ to move
 ]
 
       ;; Adjust movement while preserving angular inertia
-      set speedx speedx + dt * (repx + (V0 * sin heading - speedx) / (Tr * 2))
-      set speedy speedy + dt * (repy + (V0 * cos heading - speedy) / (Tr * 2))
+      set speedx speedx + dt * (repx + (V0-bike * sin heading - speedx) / (Tr * 2))
+      set speedy speedy + dt * (repy + (V0-bike * cos heading - speedy) / (Tr * 2))
+
+      ;;  Limit Bike Speed
+      let current-speed-mps sqrt (speedx ^ 2 + speedy ^ 2) ; Current speed in meters per second
+      let min-bike-speed-mps (14 / 3.6)            ; Convert 14 km/h to m/s
+      let max-bike-speed-mps (18 / 3.6)            ; Convert 18 km/h to m/s
+
+      if current-speed-mps < min-bike-speed-mps [
+        let scale-factor min-bike-speed-mps / current-speed-mps
+        set speedx speedx * scale-factor
+        set speedy speedy * scale-factor
+      ]
+      if current-speed-mps > max-bike-speed-mps [
+        let scale-factor max-bike-speed-mps / current-speed-mps
+        set speedx speedx * scale-factor
+        set speedy speedy * scale-factor
+      ]
+
 
       ;; Angular inertia: smooth direction changes
      if my-destination != nobody [
@@ -478,7 +511,7 @@ to define-obstacles
     ]
     ; Define pillars as obstacles
     if my-polygon != nobody [
-      let polygon-id gis:property-value my-polygon "ID"
+      let polygon-id gis:property-value my-polygon "feature"
       if polygon-id = 666 [
         set obstacle? true
         set pcolor pink  ;; Mark obstacles visually
@@ -488,6 +521,10 @@ to define-obstacles
 
   ; Mark agents with state = 0 as obstacles
   ask peds with [state = 0] [
+    set obstacle? true
+    set color white  ;; Mark resting pedestrians visually
+  ]
+  ask bikes with [state = 0] [
     set obstacle? true
     set color white  ;; Mark resting pedestrians visually
   ]
@@ -735,10 +772,10 @@ SLIDER
 76
 421
 109
-V0
-V0
+V0-bike
+V0-bike
 0
-5
+16
 3.0
 1
 1
@@ -1073,6 +1110,36 @@ bik_W
 0
 100
 50.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+276
+200
+382
+233
+d
+d
+0
+1
+1.0
+0.1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+148
+69
+320
+102
+V0-ped
+V0-ped
+0
+10
+10.0
 1
 1
 NIL
