@@ -3,15 +3,15 @@
 ; Master Thesis
 ; Supervisor Arend Ligtenberg
 
-extensions [gis table]
+extensions [gis table csv]
 
 breed [peds ped]
 breed [bikes bike]
 
-globals [destination-features conflict-table time mean-speed stddev-speed flow-cum polygons dataset wgs84-dataset study-area-patches]
-peds-own [speedx speedy state break-timer goal path-to-goal my-destination current-target]
-bikes-own [speedx speedy state break-timer goal path-to-goal my-destination current-target ]
-patches-own [ obstacle? destination-type function-id]
+globals [destination-features destination-tables conflict-table time mean-speed stddev-speed flow-cum polygons waitingpoint dataset wgs84-dataset study-area-patches]
+peds-own [speedx speedy state break-timer my-destination]
+bikes-own [speedx speedy state break-timer my-destination]
+patches-own [ obstacle? destination-type function-id waiting]
 
 ;; Part 1: Setup the Environment
 
@@ -24,12 +24,16 @@ to setup
 
   ; Load the GeoJSON dataset
   set dataset gis:load-dataset "C:/Users/marta/Desktop/THESIS/Thesis_Simple.geojson"
+  set waitingpoint gis:load-dataset "C:/Users/marta/Desktop/THESIS/waiting_area.geojson"
   ; Draw dataset for visualization
   gis:set-drawing-color red
   gis:draw dataset 0.1
 
   ; Identify patches in the study area
   set study-area-patches patches with [is-in-study-area? self]
+
+  ; Identify waiting patches
+  gis:apply-coverage waitingpoint "WAITING" waiting
 
   ; Classify destination patches
   classify-destination-patches
@@ -296,7 +300,11 @@ to move
       move-to patch-at (xcor + speedx * dt) (ycor + speedy * dt)
 
       ;; Check for break
-      ;; check-for-break self
+      let stop-probability [waiting] of patch-here  ;; get the patch's value
+if (random-float 1 < stop-probability) [
+  set state 0  ;; stop the pedestrian
+]
+
     ]
 
     ;; Handle state 0: Pedestrian is on a break (not moving)
@@ -383,7 +391,11 @@ to move
       move-to patch-at (xcor + speedx * dt) (ycor + speedy * dt)
 
       ;; Check for break
-      ;; check-for-break self
+      let stop-probability [waiting] of patch-here  ;; get the patch's value
+if (random-float 1 < stop-probability) [
+  set state 0  ;; stop the pedestrian
+]
+
     ]
 
     ;; Handle state 0: Bike is on a break (not moving)
@@ -445,57 +457,16 @@ to classify-destination-patches
   ]
 end
 
-;; Define different areas for output and waiting areas
-to define-polygons
-  set polygons [
-    ;; Polygon A
-    [[4.898868034622089 52.380729910405925]
-     [4.899086924426656 52.380651258166075]
-     [4.898814388826453 52.380692163549234]
-     [4.899042664813515 52.380606426481485]]
-
-    ;; Polygon B
-    [[4.898814388826453 52.380692163549234]
-     [4.899042664813515 52.380606426481485]
-     [4.898727879702523 52.380622942233295]
-     [4.898974181997565 52.380530096774493]]
-
-    ;; Polygon C
-    [[4.899086924426656 52.380651258166075]
-     [4.899285788129391 52.380578908062809]
-     [4.899042664813515 52.380606426481485]
-     [4.899250273748666 52.380530238911234]]
-
-    ;; Polygon D
-    [[4.899042664813515 52.380606426481485]
-     [4.899250273748666 52.380530238911234]
-     [4.898974181997565 52.380530096774493]
-     [4.899184823941056 52.380450574044353]]
-
-    ;; Polygon E
-    [[4.899285788129391 52.380578908062809]
-     [4.899484403146458 52.380508911605411]
-     [4.899250273748666 52.380530238911234]
-     [4.899435751681204 52.380463361443731]]
-
-    ;; Polygon F
-    [[4.899250273748666 52.380530238911234]
-     [4.899435751681204 52.380463361443731]
-     [4.899361700219916 52.380388994013842]
-     [4.899520014347648 52.380333955654038]]
-
-    ;; Polygon G
-    [[4.899484403146458 52.380508911605411]
-     [4.899631221036665 52.380454148064992]
-     [4.899435751681204 52.380463361443731]
-     [4.899592601858232 52.380408083732121]]
-
-    ;; Polygon H
-    [[4.899435751681204 52.380463361443731]
-     [4.899592601858232 52.380408083732121]
-     [4.899361700219916 52.380388994013842]
-     [4.899520014347648 52.380333955654038]]
+to load-destination-table
+  set destination-tables []
+  file-open "destination_tables.csv"
+  let _ignore file-read-line  ;; Skip header safely by assigning it
+  while [not file-at-end?] [
+    let line file-read-line
+    let row csv:from-row line
+    set destination-tables lput row destination-tables
   ]
+  file-close
 end
 
 ;; Define obstacles: pillars and people who are not moving
