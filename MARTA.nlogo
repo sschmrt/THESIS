@@ -9,8 +9,8 @@ breed [peds ped]
 breed [bikes bike]
 
 globals [destination-features destination-tables conflict-table time mean-speed stddev-speed flow-cum polygons waitingpoint dataset wgs84-dataset study-area-patches]
-peds-own [speedx speedy state break-timer my-destination]
-bikes-own [speedx speedy state break-timer my-destination]
+peds-own [speedx speedy state break-timer my-destination initialheading]
+bikes-own [speedx speedy state break-timer my-destination initialheading intendedheading]
 patches-own [ obstacle? destination-type function-id waiting]
 
 ;; Part 1: Setup the Environment
@@ -240,15 +240,16 @@ to move
       ;; Initialize repulsion forces
       let repx 0
       let repy 0
-      let h hd1
-      if not (speedx * speedy = 0) [ set h atan speedx speedy ]
+      if my-destination != nobody [
+  set initialheading towards my-destination
+]
 
       ;; Avoid both other pedestrians and bikes with SFT
       ask (other peds in-radius (2 * D)) [
         let dist-ped distance myself
         if dist-ped > 0 [
-          set repx repx + A * exp((1 - dist-ped) / D) * sin(towards myself) * (1 - cos(towards myself - h))
-          set repy repy + A * exp((1 - dist-ped) / D) * cos(towards myself) * (1 - cos(towards myself - h))
+          set repx repx + A * exp((1 - dist-ped) / D) * sin(towards myself) * (1 - cos(towards myself - initialheading))
+          set repy repy + A * exp((1 - dist-ped) / D) * cos(towards myself) * (1 - cos(towards myself - initialheading))
         ]
       ]
       ask (bikes in-radius (2 * D)) [
@@ -274,8 +275,8 @@ to move
       ]
 
       ;; Adjust movement with repulsion and path-following
-      set speedx speedx + dt * (repx + (V0-ped * sin heading - speedx) / Tr)
-      set speedy speedy + dt * (repy + (V0-ped * cos heading - speedy) / Tr)
+      set speedx speedx + dt * (repx + (V0-ped * sin initialheading - speedx) / Tr)
+      set speedy speedy + dt * (repy + (V0-ped * cos initialheading - speedy) / Tr)
 
        ;; Limit Pedestrian Speed
       let current-speed-mps sqrt (speedx ^ 2 + speedy ^ 2) ; Current speed in meters per second
@@ -294,7 +295,9 @@ to move
       ]
 
       ;; Update heading
-      set heading towards my-destination
+      let total-vx (V0-ped * sin initialheading) + repx
+      let total-vy (V0-ped * cos initialheading) + repy
+      set heading atan total-vx total-vy
 
       ;; Move agent based on computed speeds
       move-to patch-at (xcor + speedx * dt) (ycor + speedy * dt)
@@ -309,33 +312,38 @@ if (random-float 1 < stop-probability) [
 
     ;; Handle state 0: Pedestrian is on a break (not moving)
     if state = 0 [
-      ;; Ensure the agent remains stationary
-      set speedx 0
-      set speedy 0
+      if break-timer = 0 [
+      set break-timer random 5 + 1 ;; Random value between 1 and 5
+    ]
 
-      ;; Countdown break timer
-      set break-timer break-timer - 1
-      if break-timer <= 0 [
-        set state 1 ;; Resume movement after the break
-      ]
+    ;; Ensure the agent remains stationary
+    set speedx 0
+    set speedy 0
+
+    ;; Countdown the break-timer
+    set break-timer break-timer - 1
+
+    ;; Check if the break-timer has expired
+    if break-timer <= 0 [
+      set state 1 ;; Resume movement after the break
     ]
   ]
-
   ;; Bikes
   ask bikes [
     if state = 1 [
       ;; Initialize repulsion forces
       let repx 0
       let repy 0
-      let h hd1
-      if not (speedx * speedy = 0) [ set h atan speedx speedy ]
+      if my-destination != nobody [
+  set initialheading towards my-destination
+]
 
       ;; Avoid both other bikes and pedestrians using SFT
       ask (other bikes in-radius (3 * D)) [
         let dist-bike distance myself
         if dist-bike > 0 [
-          set repx repx + A * exp((1 - dist-bike) / D) * sin(towards myself) * (1 - 0.5 * cos(towards myself - h))
-          set repy repy + A * exp((1 - dist-bike) / D) * cos(towards myself) * (1 - 0.5 * cos(towards myself - h))
+          set repx repx + A * exp((1 - dist-bike) / D) * sin(towards myself) * (1 - 0.5 * cos(towards myself - initialheading))
+          set repy repy + A * exp((1 - dist-bike) / D) * cos(towards myself) * (1 - 0.5 * cos(towards myself - initialheading))
         ]
       ]
       ask (peds in-radius (3 * D)) [
@@ -361,8 +369,8 @@ if (random-float 1 < stop-probability) [
 ]
 
       ;; Adjust movement while preserving angular inertia
-      set speedx speedx + dt * (repx + (V0-bike * sin heading - speedx) / (Tr * 2))
-      set speedy speedy + dt * (repy + (V0-bike * cos heading - speedy) / (Tr * 2))
+      set speedx speedx + dt * (repx + (V0-bike * sin initialheading - speedx) / (Tr * 2))
+      set speedy speedy + dt * (repy + (V0-bike * cos initialheading - speedy) / (Tr * 2))
 
       ;;  Limit Bike Speed
       let current-speed-mps sqrt (speedx ^ 2 + speedy ^ 2) ; Current speed in meters per second
@@ -383,8 +391,10 @@ if (random-float 1 < stop-probability) [
 
       ;; Angular inertia: smooth direction changes
      if my-destination != nobody [
-  let desired-heading towards my-destination
-  set heading heading + (desired-heading - heading) * 0.2
+      let total-vx (V0-ped * sin initialheading) + repx
+      let total-vy (V0-ped * cos initialheading) + repy
+      set intendedheading atan total-vx total-vy
+  set heading heading + (intendedheading - heading) * 0.2
 ]
 
       ;; Move bike based on computed speeds
@@ -400,18 +410,24 @@ if (random-float 1 < stop-probability) [
 
     ;; Handle state 0: Bike is on a break (not moving)
     if state = 0 [
-      ;; Ensure the bike remains stationary
-      set speedx 0
-      set speedy 0
+      if break-timer = 0 [
+      set break-timer random 5 + 1 ;; Random value between 1 and 5
+    ]
 
-      ;; Countdown break timer
-      set break-timer break-timer - 1
-      if break-timer <= 0 [
-        set state 1 ;; Resume movement after the break
-      ]
+    ;; Ensure the agent remains stationary
+    set speedx 0
+    set speedy 0
+
+    ;; Countdown the break-timer
+    set break-timer break-timer - 1
+
+    ;; Check if the break-timer has expired
+    if break-timer <= 0 [
+      set state 1 ;; Resume movement after the break
     ]
   ]
-
+  ]
+  ]
   ;; Additional simulation updates
   move-to-goal
   check-conflict
@@ -482,7 +498,7 @@ to define-obstacles
     ]
     ; Define pillars as obstacles
     if my-polygon != nobody [
-      let polygon-id gis:property-value my-polygon "feature"
+      let polygon-id gis:property-value my-polygon "function"
       if polygon-id = 666 [
         set obstacle? true
         set pcolor pink  ;; Mark obstacles visually
