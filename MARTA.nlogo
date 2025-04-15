@@ -9,8 +9,8 @@ breed [peds ped]
 breed [bikes bike]
 
 globals [destination-features destination-tables conflict-table time mean-speed stddev-speed flow-cum polygons waitingpoint dataset wgs84-dataset study-area-patches]
-peds-own [speedx speedy state break-timer my-destination initialheading]
-bikes-own [speedx speedy state break-timer my-destination initialheading intendedheading]
+peds-own [speedx speedy state break-timer my-destination initialheading origin]
+bikes-own [speedx speedy state break-timer my-destination initialheading intendedheading origin]
 patches-own [ obstacle? destination-type function-id waiting]
 
 ;; Part 1: Setup the Environment
@@ -61,6 +61,7 @@ to spawn-agents
         move-to one-of patches with [destination-type = "north"]
         set state 1
         set break-timer 0
+        set origin "N"
         set shape "circle"
         set color cyan
         set size 0.3
@@ -74,6 +75,7 @@ to spawn-agents
          move-to one-of patches with [destination-type = "south"]
         set state 1
         set break-timer 0
+        set origin "S"
         set shape "circle"
         set color cyan
         set size 0.3
@@ -87,6 +89,7 @@ to spawn-agents
          move-to one-of patches with [destination-type = "east"]
         set state 1
         set break-timer 0
+        set origin "E"
         set shape "circle"
         set color cyan
         set size 0.3
@@ -100,6 +103,7 @@ to spawn-agents
        move-to one-of patches with [destination-type = "west"]
         set state 1
         set break-timer 0
+        set origin "W"
         set shape "circle"
         set color cyan
         set size 0.3
@@ -115,6 +119,7 @@ to spawn-agents
        move-to one-of patches with [destination-type = "north"]
         set state 1
         set break-timer 0
+        set origin "N"
         set shape "circle"
         set color magenta
         set size 0.42
@@ -128,6 +133,7 @@ to spawn-agents
         move-to one-of patches with [destination-type = "south"]
         set state 1
         set break-timer 0
+        set origin "S"
         set shape "circle"
         set color magenta
         set size 0.42
@@ -141,6 +147,7 @@ to spawn-agents
         move-to one-of patches with [destination-type = "east"]
         set state 1
         set break-timer 0
+        set origin "E"
         set shape "circle"
         set color magenta
         set size 0.42
@@ -151,9 +158,10 @@ to spawn-agents
   if random-float 1 < bik_W [
     if any? patches with [destination-type = "west"] [
       create-bikes 1 [
-         move-to one-of patches with [destination-type = "west"]
+        move-to one-of patches with [destination-type = "west"]
         set state 1
         set break-timer 0
+        set origin "W"
         set shape "circle"
         set color magenta
         set size 0.42
@@ -165,48 +173,64 @@ end
 
 ;; Assign destinations
 to assign-destinations
+  ;; Assign destinations for pedestrians
   ask peds [
-    let preferred-destinations patches with [destination-type = "east" or destination-type = "north" or destination-type = "west" or destination-type = "south"]
+    if my-destination != nobody [
+      ;; The agent's origin attribute (e.g., "south")
+      let myorigin origin ;; Replace `origin` with the actual attribute name storing the agent's origin
 
+      ;; Match the agent's origin with the table's origin (first column)
+      let origin-probabilities filter [row -> item 0 row = origin] destination-tables
 
-    ;; Weighted selection of destination patches with slider-based probabilities
-    if random-float 1 > ped_n [
-      set my-destination one-of patches with [destination-type = "north"]
+      ;; Initialize cumulative probability and random number
+      let rand random-float 1
+      let cumulative-probability 0
+
+      ;; Iterate through the filtered probabilities
+      foreach origin-probabilities [
+        [row] ->
+        ;; Add the current row's probability to the cumulative probability
+        set cumulative-probability cumulative-probability + item 2 row
+
+        ;; Check if the random number falls within the cumulative probability
+        if rand < cumulative-probability [
+          ;; Assign the destination based on the destination type in the row
+          set my-destination one-of patches with [destination-type = item 1 row]
+          stop ;; Exit the loop once the destination is assigned
+        ]
+      ]
     ]
-    if random-float 1 > ped_s [
-      set my-destination one-of patches with [destination-type = "south"]
-    ]
-    if random-float 1 > ped_e [
-      set my-destination one-of patches with [destination-type = "east"]
-    ]
-    if random-float 1 > ped_w [
-      set my-destination one-of patches with [destination-type = "west"]
-    ]
+  ]
 
-
-    ]
-
-
+  ;; Assign destinations for bikes
   ask bikes [
-    let preferred-destinations patches with [destination-type = "east" or destination-type = "north" or destination-type = "west" or destination-type = "south"]
+    if my-destination != nobody [
+      ;; The agent's origin attribute (e.g., "south")
+      let myorigin origin ;; Replace `origin` with the actual attribute name storing the agent's origin
 
-    ;; Weighted selection of destination patches with slider-based probabilities
-    if random-float 1 < bik_n [
-      set my-destination one-of patches with [destination-type = "north"]
-    ]
-    if random-float 1 < bik_s [
-      set my-destination one-of patches with [destination-type = "south"]
-    ]
-    if random-float 1 < bik_e [
-      set my-destination one-of patches with [destination-type = "east"]
-    ]
-    if random-float 1 < bik_w [
-      set my-destination one-of patches with [destination-type = "west"]
+      ;; Match the agent's origin with the table's origin (first column)
+      let origin-probabilities filter [row -> item 0 row = origin] destination-tables
 
+      ;; Initialize cumulative probability and random number
+      let rand random-float 1
+      let cumulative-probability 0
+
+      ;; Iterate through the filtered probabilities
+      foreach origin-probabilities [
+        [row] ->
+        ;; Add the current row's probability to the cumulative probability
+        set cumulative-probability cumulative-probability + item 2 row
+
+        ;; Check if the random number falls within the cumulative probability
+        if rand < cumulative-probability [
+          ;; Assign the destination based on the destination type in the row
+          set my-destination one-of patches with [destination-type = item 1 row]
+          stop ;; Exit the loop once the destination is assigned
+        ]
+      ]
     ]
   ]
 end
-
 ;; Part 2: Multilayered approach to modelling
 
 ;; Pathfinding Layer
@@ -216,7 +240,7 @@ to move-to-goal
       face my-destination
       move-to my-destination
       fd 1
-      if distance my-destination < 0.5 [ ; Adjust threshold as needed
+      if distance my-destination < 0.5 [ ;
         die
       ]
     ]
@@ -226,7 +250,7 @@ to move-to-goal
       face my-destination
       move-to my-destination
       fd 1
-      if distance my-destination < 0.5 [ ; Adjust threshold as needed
+      if distance my-destination < 0.5 [ ;
         die
       ]
     ]
@@ -235,7 +259,7 @@ end
 
 ;; Interaction and Obstacle Layer
 to move
-  if ticks >= 3600 [ stop ] ;; Stops the simulation after 3600 ticks
+  if ticks >= 3600 [ stop ]
   set time precision (time + dt) 5
   tick-advance 1
 
@@ -480,12 +504,12 @@ end
 
 to load-destination-table
   set destination-tables []
-  file-open "destination_tables.csv"
+  file-open "destination_probabilities.csv"
   let _ignore file-read-line  ;; Skip header safely by assigning it
   while [not file-at-end?] [
-    let line file-read-line
-    let row csv:from-row line
-    set destination-tables lput row destination-tables
+    let line file-read-line           ;; Read one line from the file
+    let row csv:from-row line         ;; Convert the CSV line into a list
+    set destination-tables lput row destination-tables  ;; Append the row to the table
   ]
   file-close
 end
@@ -722,10 +746,10 @@ NIL
 1
 
 PLOT
-170
-366
-483
-486
+511
+341
+824
+461
 Mean flow
 Time
 Flow
@@ -854,17 +878,6 @@ false
 PENS
 "default" 1.0 0 -11053225 true "" ""
 
-SWITCH
-425
-186
-528
-219
-cycle?
-cycle?
-0
-1
--1000
-
 SLIDER
 221
 113
@@ -913,21 +926,6 @@ NIL
 HORIZONTAL
 
 SLIDER
-424
-113
-529
-146
-hd1
-hd1
-0
-360
-265.0
-5
-1
-degree
-HORIZONTAL
-
-SLIDER
 329
 112
 421
@@ -940,21 +938,6 @@ Tr
 .1
 1
 NIL
-HORIZONTAL
-
-SLIDER
-424
-148
-529
-181
-hd2
-hd2
-0
-360
-195.0
-5
-1
-degree
 HORIZONTAL
 
 SLIDER
