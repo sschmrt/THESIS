@@ -213,20 +213,25 @@ end
 to move-to-goal
   ask peds [
     if my-destination != nobody [
-    face my-destination
-    move-to my-destination
-    fd 1
-  ]
+      face my-destination
+      move-to my-destination
+      fd 1
+      if distance my-destination < 0.5 [ ; Adjust threshold as needed
+        die
+      ]
+    ]
   ]
   ask bikes [
     if my-destination != nobody [
-    face my-destination
-    move-to my-destination
-    fd 1
-  ]
+      face my-destination
+      move-to my-destination
+      fd 1
+      if distance my-destination < 0.5 [ ; Adjust threshold as needed
+        die
+      ]
+    ]
   ]
 end
-
 
 ;; Interaction and Obstacle Layer
 to move
