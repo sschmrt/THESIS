@@ -177,7 +177,7 @@ to assign-destinations
   ask peds [
     if my-destination != nobody [
       ;; The agent's origin attribute (e.g., "south")
-      let myorigin origin ;; Replace `origin` with the actual attribute name storing the agent's origin
+      let myorigin origin ;;
 
       ;; Match the agent's origin with the table's origin (first column)
       let origin-probabilities filter [row -> item 0 row = origin] destination-tables
@@ -269,9 +269,12 @@ to move
       ;; Initialize repulsion forces
       let repx 0
       let repy 0
-      if my-destination != nobody [
-  set initialheading towards my-destination
-]
+     if my-destination != nobody and my-destination != 0 and is-patch? my-destination [
+        set initialheading towards my-destination
+      ]
+        ;; Fallback behavior if my-destination is invalid
+        set initialheading random 360  ;; Assign a random heading
+
 
       ;; Avoid both other pedestrians and bikes with SFT
       ask (other peds in-radius (2 * D)) [
@@ -281,7 +284,7 @@ to move
           set repy repy + A * exp((1 - dist-ped) / D) * cos(towards myself) * (1 - cos(towards myself - initialheading))
         ]
       ]
-      ask (bikes in-radius (2 * D)) [
+      ask ( bikes in-radius (2 * D)) [
         let dist-bike distance myself
         if dist-bike > 0 [
           set repx repx + A * exp((1 - dist-bike) / D) * sin(towards myself)
@@ -502,18 +505,6 @@ to classify-destination-patches
   ]
 end
 
-to load-destination-table
-  set destination-tables []
-  file-open "destination_probabilities.csv"
-  let _ignore file-read-line  ;; Skip header safely by assigning it
-  while [not file-at-end?] [
-    let line file-read-line           ;; Read one line from the file
-    let row csv:from-row line         ;; Convert the CSV line into a list
-    set destination-tables lput row destination-tables  ;; Append the row to the table
-  ]
-  file-close
-end
-
 ;; Define obstacles: pillars and people who are not moving
 to define-obstacles
   ask patches [
@@ -594,6 +585,28 @@ to update-stats-and-flow
 
 
   plot! ; Update the plots
+end
+
+to setup-destination-tables
+  ;; Hardcoded origin-destination-probability table
+  set destination-tables [
+    ["N" "N" 0.01]
+    ["N" "S" 0.4]
+    ["N" "E" 0.3]
+    ["N" "W" 0.29]
+    ["S" "N" 0.45]
+    ["S" "S" 0.01]
+    ["S" "E" 0.3]
+    ["S" "W" 0.3]
+    ["E" "N" 0.4]
+    ["E" "S" 0.3]
+    ["E" "E" 0.01]
+    ["E" "W" 0.29]
+    ["W" "N" 0.4]
+    ["W" "S" 0.3]
+    ["W" "E" 0.29]
+    ["W" "W" 0.01]
+  ]
 end
 
 ;; Check conflict in  study area
