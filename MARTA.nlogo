@@ -25,6 +25,7 @@ to setup
   ; Load the GeoJSON dataset
   set dataset gis:load-dataset "C:/Users/marta/Desktop/THESIS/Thesis_Simple.geojson"
   set waitingpoint gis:load-dataset "C:/Users/marta/Desktop/THESIS/waiting_area.geojson"
+
   ; Draw dataset for visualization
   gis:set-drawing-color red
   gis:draw dataset 0.1
@@ -37,6 +38,8 @@ to setup
 
   ; Classify destination patches
   classify-destination-patches
+
+ setup-destination-tables
 
   ; Mark study area patches and restrict movement
   define-obstacles
@@ -237,6 +240,7 @@ end
 to move-to-goal
   ask peds [
     if my-destination != nobody [
+
       face my-destination
       move-to my-destination
       fd 1
@@ -273,6 +277,7 @@ to move
         set initialheading towards my-destination
       ]
         ;; Fallback behavior if my-destination is invalid
+
         set initialheading random 360  ;; Assign a random heading
 
 
