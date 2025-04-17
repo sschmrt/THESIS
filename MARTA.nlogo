@@ -8,7 +8,7 @@ extensions [gis table csv]
 breed [peds ped]
 breed [bikes bike]
 
-globals [destination-features destination-tables conflict-table time mean-speed stddev-speed flow-cum polygons waitingpoint dataset wgs84-dataset study-area-patches]
+globals [conflict-table destination-features destination-tables time mean-speed stddev-speed flow-cum polygons waitingpoint dataset wgs84-dataset study-area-patches]
 peds-own [speedx speedy state break-timer my-destination initialheading origin]
 bikes-own [speedx speedy state break-timer my-destination initialheading intendedheading origin]
 patches-own [ obstacle? destination-type function-id waiting]
@@ -20,6 +20,8 @@ patches-own [ obstacle? destination-type function-id waiting]
 to setup
   clear-all
   reset-ticks
+  tick
+  check-conflict
   set conflict-table table:make
 
   ; Load the GeoJSON dataset
@@ -67,7 +69,7 @@ to spawn-agents
         set origin "N"
         set shape "circle"
         set color cyan
-        set size 0.3
+        set size 0.1
         assign-destinations
       ]
     ]
@@ -81,7 +83,7 @@ to spawn-agents
         set origin "S"
         set shape "circle"
         set color cyan
-        set size 0.3
+        set size 0.1
         assign-destinations
       ]
     ]
@@ -95,7 +97,7 @@ to spawn-agents
         set origin "E"
         set shape "circle"
         set color cyan
-        set size 0.3
+        set size 0.1
         assign-destinations
       ]
     ]
@@ -109,7 +111,7 @@ to spawn-agents
         set origin "W"
         set shape "circle"
         set color cyan
-        set size 0.3
+        set size 0.1
         assign-destinations
       ]
     ]
@@ -125,7 +127,7 @@ to spawn-agents
         set origin "N"
         set shape "circle"
         set color magenta
-        set size 0.42
+        set size 0.2
         assign-destinations
       ]
     ]
@@ -139,7 +141,7 @@ to spawn-agents
         set origin "S"
         set shape "circle"
         set color magenta
-        set size 0.42
+        set size 0.2
         assign-destinations
       ]
     ]
@@ -153,7 +155,7 @@ to spawn-agents
         set origin "E"
         set shape "circle"
         set color magenta
-        set size 0.42
+        set size 0.2
         assign-destinations
       ]
     ]
@@ -167,7 +169,7 @@ to spawn-agents
         set origin "W"
         set shape "circle"
         set color magenta
-        set size 0.42
+        set size 0.2
         assign-destinations
       ]
     ]
@@ -282,14 +284,14 @@ to move
 
 
       ;; Avoid both other pedestrians and bikes with SFT
-      ask (other peds in-radius (2 * D)) [
+      ask (other peds in-radius (D)) [
         let dist-ped distance myself
         if dist-ped > 0 [
           set repx repx + A * exp((1 - dist-ped) / D) * sin(towards myself) * (1 - cos(towards myself - initialheading))
           set repy repy + A * exp((1 - dist-ped) / D) * cos(towards myself) * (1 - cos(towards myself - initialheading))
         ]
       ]
-      ask ( bikes in-radius (2 * D)) [
+      ask ( bikes in-radius (D)) [
         let dist-bike distance myself
         if dist-bike > 0 [
           set repx repx + A * exp((1 - dist-bike) / D) * sin(towards myself)
@@ -337,8 +339,10 @@ to move
       set heading atan total-vx total-vy
 
       ;; Move agent based on computed speeds
-      move-to patch-at (xcor + speedx * dt) (ycor + speedy * dt)
-
+      let next-patch patch-at (xcor + speedx * dt) (ycor + speedy * dt)
+      if next-patch != nobody and member? next-patch study-area-patches [
+        move-to next-patch
+      ]
       ;; Check for break
       let stop-probability [waiting] of patch-here  ;; get the patch's value
 if (random-float 1 < stop-probability) [
@@ -376,14 +380,14 @@ if (random-float 1 < stop-probability) [
 ]
 
       ;; Avoid both other bikes and pedestrians using SFT
-      ask (other bikes in-radius (3 * D)) [
+      ask (other bikes in-radius (1.5 * D)) [
         let dist-bike distance myself
         if dist-bike > 0 [
           set repx repx + A * exp((1 - dist-bike) / D) * sin(towards myself) * (1 - 0.5 * cos(towards myself - initialheading))
           set repy repy + A * exp((1 - dist-bike) / D) * cos(towards myself) * (1 - 0.5 * cos(towards myself - initialheading))
         ]
       ]
-      ask (peds in-radius (3 * D)) [
+      ask (peds in-radius (1.5 * D)) [
         let dist-ped distance myself
         if dist-ped > 0 [
           set repx repx + A * exp((1 - dist-ped) / D) * sin(towards myself)
@@ -392,7 +396,7 @@ if (random-float 1 < stop-probability) [
       ]
 
       ;; Avoid obstacles
-      ask patches with [obstacle?] in-radius (1.5 * D) [
+      ask patches with [obstacle?] in-radius (1.8 * D) [
         let dist-obs distance myself
         if dist-obs > 0 [
           set repx repx + A * exp((1 - dist-obs) / D) * sin(towards myself)
@@ -435,7 +439,10 @@ if (random-float 1 < stop-probability) [
 ]
 
       ;; Move bike based on computed speeds
-      move-to patch-at (xcor + speedx * dt) (ycor + speedy * dt)
+      let next-patch patch-at (xcor + speedx * dt) (ycor + speedy * dt)
+      if next-patch != nobody and member? next-patch study-area-patches [
+        move-to next-patch
+      ]
 
       ;; Check for break
       let stop-probability [waiting] of patch-here  ;; get the patch's value
@@ -468,7 +475,6 @@ if (random-float 1 < stop-probability) [
   ;; Additional simulation updates
   move-to-goal
   check-conflict
-  report-conflicts
   update-stats-and-flow
 end
 
@@ -595,22 +601,22 @@ end
 to setup-destination-tables
   ;; Hardcoded origin-destination-probability table
   set destination-tables [
-    ["N" "N" 0.01]
-    ["N" "S" 0.4]
-    ["N" "E" 0.3]
-    ["N" "W" 0.29]
-    ["S" "N" 0.45]
-    ["S" "S" 0.01]
-    ["S" "E" 0.3]
-    ["S" "W" 0.3]
-    ["E" "N" 0.4]
-    ["E" "S" 0.3]
-    ["E" "E" 0.01]
-    ["E" "W" 0.29]
-    ["W" "N" 0.4]
-    ["W" "S" 0.3]
+    ["N" "north" 0.01]
+    ["N" "south" 0.4]
+    ["N" "east" 0.3]
+    ["N" "west" 0.29]
+    ["S" "north" 0.45]
+    ["S" "south" 0.01]
+    ["S" "east" 0.3]
+    ["S" "west" 0.3]
+    ["E" "north" 0.4]
+    ["E" "south" 0.3]
+    ["E" "east" 0.01]
+    ["E" "west" 0.29]
+    ["W" "north" 0.4]
+    ["W" "south" 0.3]
     ["W" "E" 0.29]
-    ["W" "W" 0.01]
+    ["W" "west" 0.01]
   ]
 end
 
@@ -618,7 +624,7 @@ end
 to check-conflict
   ask turtles [
     let my-polygon nobody
-    foreach gis:feature-list-of dataset [
+    foreach gis:feature-list-of waitingpoint [
       [feature] ->
       if gis:intersects? patch-here feature [
         set my-polygon feature
@@ -628,7 +634,7 @@ to check-conflict
     ;; Only proceed if the turtle is in a relevant polygon
     if my-polygon != nobody [
       let polygon-id gis:property-value my-polygon "ID"
-      if member? polygon-id [2 3 4 5 6 7 8 9] [
+      if member? polygon-id [1 2 3 4 5 6 7 8] [
         let severe-count 0
         let moderate-count 0
         let mild-count 0
@@ -670,7 +676,6 @@ to report-conflicts
     print (word ? " | " item 0 data " | " item 1 data " | " item 2 data)
   ]
 end
-
 
 ;; Plot your output!
 to plot!
@@ -715,9 +720,9 @@ Ticks
 30.0
 
 SLIDER
-11
+3
 10
-114
+95
 43
 Nb-peds
 Nb-peds
@@ -730,10 +735,10 @@ NIL
 HORIZONTAL
 
 BUTTON
-160
-94
-215
-128
+388
+15
+443
+49
 NIL
 Setup
 NIL
@@ -747,10 +752,10 @@ NIL
 1
 
 BUTTON
-160
-131
-215
-164
+448
+16
+503
+49
 NIL
 Move
 T
@@ -764,10 +769,10 @@ NIL
 1
 
 PLOT
-511
-341
-824
-461
+204
+324
+506
+444
 Mean flow
 Time
 Flow
@@ -783,10 +788,10 @@ PENS
 "Temporal" 1.0 0 -11881837 true "" ""
 
 PLOT
-170
-243
-520
-363
+204
+70
+505
+190
 Speed
 Time
 Speed
@@ -802,10 +807,10 @@ PENS
 "Stddev" 1.0 0 -11881837 true "" ""
 
 SLIDER
-329
-76
-421
-109
+105
+105
+197
+138
 V0-bike
 V0-bike
 0
@@ -817,10 +822,10 @@ NIL
 HORIZONTAL
 
 MONITOR
-300
-20
-370
-65
+167
+10
+237
+55
 Mean speed
 mean [sqrt(speedx ^ 2 + speedy ^ 2)] of peds with [state > -1]
 5
@@ -828,10 +833,10 @@ mean [sqrt(speedx ^ 2 + speedy ^ 2)] of peds with [state > -1]
 11
 
 MONITOR
-373
-20
-450
-65
+240
+10
+317
+55
 Speed stddev
 stddev-speed / ticks
 5
@@ -839,10 +844,10 @@ stddev-speed / ticks
 11
 
 MONITOR
-238
-20
-296
-65
+105
+10
+163
+55
 Density
 Nb-peds / world-width / world-height
 5
@@ -850,10 +855,10 @@ Nb-peds / world-width / world-height
 11
 
 MONITOR
-453
-20
-514
-65
+320
+10
+381
+55
 Flow
 flow-cum / time / world-height
 5
@@ -861,10 +866,10 @@ flow-cum / time / world-height
 11
 
 PLOT
-283
-332
-465
-452
+203
+196
+506
+316
 Fundamental diagram
 Density
 Flow
@@ -879,10 +884,10 @@ PENS
 "default" 1.0 0 -11053225 true "" ""
 
 PLOT
-672
-366
-832
-486
+5
+350
+165
+470
 Speed stddev
 Density
 Stddev
@@ -897,10 +902,10 @@ PENS
 "default" 1.0 0 -11053225 true "" ""
 
 SLIDER
-221
-113
-324
-146
+105
+255
+197
+288
 dt
 dt
 0
@@ -911,28 +916,11 @@ dt
 NIL
 HORIZONTAL
 
-BUTTON
-160
-167
-215
-200
-NIL
-Move
-NIL
-1
-T
-OBSERVER
-NIL
-NIL
-NIL
-NIL
-1
-
 SLIDER
-329
-148
-421
-181
+105
+177
+197
+210
 A
 A
 0
@@ -944,10 +932,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-329
-112
-421
-145
+105
+141
+197
+174
 Tr
 Tr
 .1
@@ -959,24 +947,24 @@ NIL
 HORIZONTAL
 
 SLIDER
-424
-77
-529
-110
+103
+217
+195
+250
 p
 p
 0
 1
-0.0
+1.0
 .05
 1
 NIL
 HORIZONTAL
 
 SLIDER
-8
+0
 54
-118
+92
 87
 Nb-Bikes
 Nb-Bikes
@@ -989,10 +977,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-21
-116
-193
-149
+0
+129
+92
+162
 ped_S
 ped_S
 0
@@ -1005,129 +993,129 @@ HORIZONTAL
 
 SLIDER
 0
-322
-172
-355
+92
+95
+125
 ped_N
 ped_N
 0
 1
-1.0
+0.9
 .1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-81
-229
-253
-262
+1
+167
+93
+200
 ped_E
 ped_E
 0
-100
-64.0
 1
+0.8
+.1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-28
-254
-200
-287
+0
+204
+93
+237
 ped_W
 ped_W
 0
-100
-50.0
 1
+0.4
+.1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-52
-346
-224
-379
+0
+240
+94
+273
 bik_N
 bik_N
 0
-100
-50.0
 1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-113
-287
-285
-320
-bik_S
-bik_S
-0
-100
-50.0
-1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-53
-385
-225
-418
-bik_E
-bik_E
-0
-100
-50.0
-1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-124
-357
-296
-390
-bik_W
-bik_W
-0
-100
-50.0
-1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-276
-200
-382
-233
-d
-d
-0
-1
-1.0
+0.7
 0.1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-148
-69
-320
-102
+1
+275
+93
+308
+bik_S
+bik_S
+0
+1
+0.9
+.1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+0
+313
+95
+346
+bik_E
+bik_E
+0
+1
+0.6
+.1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+103
+334
+198
+367
+bik_W
+bik_W
+0
+1
+0.7
+.1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+103
+295
+195
+328
+D
+D
+0
+5
+0.1
+0.1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+107
+66
+199
+99
 V0-ped
 V0-ped
 0
