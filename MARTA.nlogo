@@ -69,7 +69,8 @@ to spawn-agents
         set origin "N"
         set shape "circle"
         set color cyan
-        set size 0.1
+        set size 0.2
+        assign-pedspeed
         assign-destinations
       ]
     ]
@@ -83,7 +84,8 @@ to spawn-agents
         set origin "S"
         set shape "circle"
         set color cyan
-        set size 0.1
+        set size 0.2
+        assign-pedspeed
         assign-destinations
       ]
     ]
@@ -97,7 +99,8 @@ to spawn-agents
         set origin "E"
         set shape "circle"
         set color cyan
-        set size 0.1
+        set size 0.2
+        assign-pedspeed
         assign-destinations
       ]
     ]
@@ -111,7 +114,8 @@ to spawn-agents
         set origin "W"
         set shape "circle"
         set color cyan
-        set size 0.1
+        set size 0.2
+        assign-pedspeed
         assign-destinations
       ]
     ]
@@ -127,7 +131,8 @@ to spawn-agents
         set origin "N"
         set shape "circle"
         set color magenta
-        set size 0.2
+        set size 0.45
+        assign-bikespeed
         assign-destinations
       ]
     ]
@@ -141,7 +146,8 @@ to spawn-agents
         set origin "S"
         set shape "circle"
         set color magenta
-        set size 0.2
+        set size 0.
+        assign-bikespeed
         assign-destinations
       ]
     ]
@@ -155,7 +161,8 @@ to spawn-agents
         set origin "E"
         set shape "circle"
         set color magenta
-        set size 0.2
+        set size 0.45
+        assign-bikespeed
         assign-destinations
       ]
     ]
@@ -169,11 +176,30 @@ to spawn-agents
         set origin "W"
         set shape "circle"
         set color magenta
-        set size 0.2
+        set size 0.45
+        assign-bikespeed
         assign-destinations
       ]
     ]
   ]
+end
+
+to assign-pedspeed
+  ;; Generate a random base speed for the turtle
+  let base-speed random-float 1.5  ;;
+
+  ;; Decompose the base speed into x and y components based on the heading
+  set speedx base-speed * cos heading
+  set speedy base-speed * sin heading
+end
+
+to assign-bikespeed
+  ;; Generate a random base speed for the turtle
+  let base-speed random-float 5  ;;
+
+  ;; Decompose the base speed into x and y components based on the heading
+  set speedx base-speed * cos heading
+  set speedy base-speed * sin heading
 end
 
 ;; Assign destinations
