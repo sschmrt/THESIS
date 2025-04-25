@@ -9,9 +9,9 @@ breed [peds ped]
 breed [bikes bike]
 
 globals [conflict-table destination-features destination-tables time mean-speed stddev-speed flow-cum polygons waitingpoint dataset wgs84-dataset study-area-patches]
-peds-own [speedx speedy state break-timer my-destination initialheading origin]
-bikes-own [speedx speedy state break-timer my-destination initialheading intendedheading origin]
-patches-own [ obstacle? destination-type function-id waiting]
+peds-own [speedx speedy state my-destination origin]
+bikes-own [speedx speedy state my-destination origin]
+patches-own [ obstacle? destination-type function-id waiting destination-patch ]
 
 ;; Part 1: Setup the Environment
 
@@ -21,507 +21,278 @@ to setup
   clear-all
   reset-ticks
   tick
-  check-conflict
-  set conflict-table table:make
 
   ; Load the GeoJSON dataset
-  set dataset gis:load-dataset "C:/Users/marta/Desktop/THESIS/Thesis_Simple.geojson"
-  set waitingpoint gis:load-dataset "C:/Users/marta/Desktop/THESIS/waiting_area.geojson"
+  set dataset gis:load-dataset "C:/Users/marta/Desktop/THESIS/ImputLayers/Thesis_Simple.geojson"
+  set waitingpoint gis:load-dataset "C:/Users/marta/Desktop/THESIS/InputLayers/waiting_area.geojson"
 
   ; Draw dataset for visualization
   gis:set-drawing-color red
   gis:draw dataset 0.1
+  classify-destination-patches
 
   ; Identify patches in the study area
   set study-area-patches patches with [is-in-study-area? self]
-
-  ; Identify waiting patches
-  gis:apply-coverage waitingpoint "WAITING" waiting
-
-  ; Classify destination patches
-  classify-destination-patches
-
- setup-destination-tables
-
-  ; Mark study area patches and restrict movement
-  define-obstacles
   ask study-area-patches [
     set pcolor green
   ]
 
+  ; Identify waiting patches
+  gis:apply-coverage waitingpoint "WAITING" waiting
+
   ; Initialize variables
-  set Nb-peds 100
-  set Nb-bikes 100
-  set dt 1
   spawn-agents
 end
 
+to c-ped
+  create-peds 1 [
+    set state 1
+    set shape "circle"
+    set color cyan
+    set size .4
 
-;; Rules for spawning
-to spawn-agents
-  ;; Spawn pedestrians based on probability for each direction
-  if random-float 1 < ped_N [
-    if any? patches with [destination-type = "north"] [
-      create-peds 1 [
-        move-to one-of patches with [destination-type = "north"]
-        set state 1
-        set break-timer 0
-        set origin "N"
-        set shape "circle"
-        set color cyan
-        set size 0.2
-        assign-pedspeed
-        assign-destinations
-      ]
-    ]
-  ]
-  if random-float 1 < ped_S [
-    if any? patches with [destination-type = "south"] [
-      create-peds 1 [
-         move-to one-of patches with [destination-type = "south"]
-        set state 1
-        set break-timer 0
-        set origin "S"
-        set shape "circle"
-        set color cyan
-        set size 0.2
-        assign-pedspeed
-        assign-destinations
-      ]
-    ]
-  ]
-  if random-float 1 < ped_E [
-    if any? patches with [destination-type = "east"] [
-      create-peds 1 [
-         move-to one-of patches with [destination-type = "east"]
-        set state 1
-        set break-timer 0
-        set origin "E"
-        set shape "circle"
-        set color cyan
-        set size 0.2
-        assign-pedspeed
-        assign-destinations
-      ]
-    ]
-  ]
-  if random-float 1 < ped_W [
-   if any? patches with [destination-type = "west"] [
-      create-peds 1 [
-       move-to one-of patches with [destination-type = "west"]
-        set state 1
-        set break-timer 0
-        set origin "W"
-        set shape "circle"
-        set color cyan
-        set size 0.2
-        assign-pedspeed
-        assign-destinations
-      ]
-    ]
-  ]
+    ;; Assign a direction based on the slider probabilities (total = 1)
+    let direction random-float 1
 
-  ;; Spawn bikes based on probability for each direction
-  if random-float 1 < bik_N [
-    if any? patches with [destination-type = "north"] [
-      create-bikes 1 [
-       move-to one-of patches with [destination-type = "north"]
-        set state 1
-        set break-timer 0
-        set origin "N"
-        set shape "circle"
-        set color magenta
-        set size 0.45
-        assign-bikespeed
-        assign-destinations
-      ]
+    if direction < ped_S [
+      ;; Spawn from south
+      move-to one-of patches with [destination-type = "south"]
+      set origin "south"
     ]
-  ]
-  if random-float 1 < bik_S [
-    if any? patches with [destination-type = "south"] [
-      create-bikes 1 [
-        move-to one-of patches with [destination-type = "south"]
-        set state 1
-        set break-timer 0
-        set origin "S"
-        set shape "circle"
-        set color magenta
-        set size 0.
-        assign-bikespeed
-        assign-destinations
-      ]
+    if direction >= ped_S and direction < (ped_S + ped_N) [
+      ;; Spawn from north
+      move-to one-of patches with [destination-type = "north"]
+      set origin "north"
     ]
-  ]
-  if random-float 1 < bik_E [
-    if any? patches with [destination-type = "east"] [
-      create-bikes 1 [
-        move-to one-of patches with [destination-type = "east"]
-        set state 1
-        set break-timer 0
-        set origin "E"
-        set shape "circle"
-        set color magenta
-        set size 0.45
-        assign-bikespeed
-        assign-destinations
-      ]
+    if direction >= (ped_S + ped_N) and direction < (ped_S + ped_N + ped_W) [
+      ;; Spawn from west
+      move-to one-of patches with [destination-type = "west"]
+      set origin "west"
     ]
-  ]
-  if random-float 1 < bik_W [
-    if any? patches with [destination-type = "west"] [
-      create-bikes 1 [
-        move-to one-of patches with [destination-type = "west"]
-        set state 1
-        set break-timer 0
-        set origin "W"
-        set shape "circle"
-        set color magenta
-        set size 0.45
-        assign-bikespeed
-        assign-destinations
-      ]
+    if direction >= (ped_S + ped_N + ped_W) [
+      ;; Spawn from east
+      move-to one-of patches with [destination-type = "east"]
+      set origin "east"
     ]
+
+    ;; Assign speed and destination
+    assign-destinations
+    assign-pedspeed
   ]
 end
 
-to assign-pedspeed
-  ;; Generate a random base speed for the turtle
-  let base-speed random-float 1.5  ;;
+to c-bik
+  create-bikes 1 [
+    set state 1
+    set shape "circle"
+    set color blue
+    set size .5
 
-  ;; Decompose the base speed into x and y components based on the heading
-  set speedx base-speed * cos heading
-  set speedy base-speed * sin heading
+    ;; Assign a direction based on the slider probabilities (total = 1)
+    let direction random-float 1
+
+    if direction < bik_S [
+      ;; Spawn from south
+      move-to one-of patches with [destination-type = "south"]
+      set origin "south"
+    ]
+    if direction >= bik_S and direction < (bik_S + bik_N) [
+      ;; Spawn from north
+      move-to one-of patches with [destination-type = "north"]
+      set origin "north"
+    ]
+    if direction >= (bik_S + bik_N) and direction < (bik_S + bik_N + bik_W) [
+      ;; Spawn from west
+      move-to one-of patches with [destination-type = "west"]
+      set origin "west"
+    ]
+    if direction >= (bik_S + bik_N + bik_W) [
+      ;; Spawn from east
+      move-to one-of patches with [destination-type = "east"]
+      set origin "east"
+    ]
+
+    ;; Assign speed and destination
+    assign-destinations
+    assign-bikespeed
+  ]
+end
+
+
+to spawn-agents
+  ;; Calculate the number of pedestrians and bikes to emit per tick
+  let peds-per-tick Nb-peds / 3600
+  let bikes-per-tick Nb-bikes / 3600
+
+  ;; Use round to determine how many to emit per tick
+  let peds-to-emit round peds-per-tick
+  let bikes-to-emit round bikes-per-tick
+
+  ;; Emit pedestrians
+  repeat peds-to-emit [
+    c-ped
+  ]
+
+  ;; Emit bikes
+  repeat bikes-to-emit [
+    c-bik
+  ]
+end
+
+
+; Rules for initial speed
+to assign-pedspeed
+  let speed-m-s random-normal 1.4 0.2  ; ~1.4 ± 0.2 m/s (5.0 km/h ± 0.7)
+  set speedx speed-m-s * cos heading
+  set speedy speed-m-s * sin heading
 end
 
 to assign-bikespeed
-  ;; Generate a random base speed for the turtle
-  let base-speed random-float 5  ;;
-
-  ;; Decompose the base speed into x and y components based on the heading
-  set speedx base-speed * cos heading
-  set speedy base-speed * sin heading
+  let speed-m-s random-normal 4.5 0.5  ; ~4.5 ± 0.5 m/s (16.2 km/h ± 1.8)
+  set speedx speed-m-s * cos heading  ; Directly in m/tick (1 patch = 1m)
+  set speedy speed-m-s * sin heading
 end
 
-;; Assign destinations
+;; Rules for destinations
 to assign-destinations
-  ;; Assign destinations for pedestrians
   ask peds [
     if my-destination != nobody [
-      ;; The agent's origin attribute (e.g., "south")
-      let myorigin origin ;;
-
-      ;; Match the agent's origin with the table's origin (first column)
-      let origin-probabilities filter [row -> item 0 row = origin] destination-tables
-
-      ;; Initialize cumulative probability and random number
-      let rand random-float 1
-      let cumulative-probability 0
-
-      ;; Iterate through the filtered probabilities
-      foreach origin-probabilities [
-        [row] ->
-        ;; Add the current row's probability to the cumulative probability
-        set cumulative-probability cumulative-probability + item 2 row
-
-        ;; Check if the random number falls within the cumulative probability
-        if rand < cumulative-probability [
-          ;; Assign the destination based on the destination type in the row
-          set my-destination one-of patches with [destination-type = item 1 row]
-          stop ;; Exit the loop once the destination is assigned
-        ]
+      let random-value random-float 1
+      if origin = "south" [
+        if random-value < 0 [ set my-destination one-of patches with [destination-type = "south" ]]
+        if random-value >= 0 and random-value < 0 [ set my-destination one-of patches with [destination-type = "east" ]]
+        if random-value >= 0.1 and random-value < 1 [ set my-destination one-of patches with [destination-type = "west" ]]
+        if random-value >= 0 [ set my-destination one-of patches with [destination-type = "north" ]]
       ]
+      if origin = "north" [
+        if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "north" ]]
+        if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "east" ]]
+        if random-value >= 0.25 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "west" ]]
+        if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "south" ]]
+      ]
+      if origin = "east" [
+        if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "east" ]]
+        if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "north" ]]
+        if random-value >= 0.25 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "south" ]]
+        if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "west" ]]
+      ]
+      if origin = "west" [
+        if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "west" ]]
+        if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "south" ]]
+        if random-value >= 0.25 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "north" ]]
+        if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "east" ]]
+      ]
+    ]
+      if my-destination = 0 [
+      print (word "Pedestrian with origin " origin " has no valid destination!")
     ]
   ]
 
   ;; Assign destinations for bikes
-  ask bikes [
+   ask bikes [
     if my-destination != nobody [
-      ;; The agent's origin attribute (e.g., "south")
-      let myorigin origin ;; Replace `origin` with the actual attribute name storing the agent's origin
-
-      ;; Match the agent's origin with the table's origin (first column)
-      let origin-probabilities filter [row -> item 0 row = origin] destination-tables
-
-      ;; Initialize cumulative probability and random number
-      let rand random-float 1
-      let cumulative-probability 0
-
-      ;; Iterate through the filtered probabilities
-      foreach origin-probabilities [
-        [row] ->
-        ;; Add the current row's probability to the cumulative probability
-        set cumulative-probability cumulative-probability + item 2 row
-
-        ;; Check if the random number falls within the cumulative probability
-        if rand < cumulative-probability [
-          ;; Assign the destination based on the destination type in the row
-          set my-destination one-of patches with [destination-type = item 1 row]
-          stop ;; Exit the loop once the destination is assigned
-        ]
+      let random-value random-float 1
+      if origin = "south" [
+        if random-value < 0 [ set my-destination one-of patches with [destination-type = "south" ]]
+        if random-value >= 0 and random-value < 0 [ set my-destination one-of patches with [destination-type = "east" ]]
+        if random-value >= .1 and random-value < 1 [ set my-destination one-of patches with [destination-type = "west" ]]
+        if random-value >= 0 [ set my-destination one-of patches with [destination-type = "north" ]]
       ]
+      if origin = "north" [
+        if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "north" ]]
+        if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "east" ]]
+        if random-value >= 0.25 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "west" ]]
+        if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "south" ]]
+      ]
+      if origin = "east" [
+        if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "east" ]]
+        if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "north" ]]
+        if random-value >= 0.25 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "south" ]]
+        if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "west" ]]
+      ]
+      if origin = "west" [
+        if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "west" ]]
+        if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "south" ]]
+        if random-value >= 0.25 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "north" ]]
+        if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "east" ]]
+      ]
+    ]
+      if my-destination = 0 [
+      print (word "Bike with origin " origin " has no valid destination!")
     ]
   ]
 end
+
 ;; Part 2: Multilayered approach to modelling
 
 ;; Pathfinding Layer
-to move-to-goal
-  ask peds [
-    if my-destination != nobody [
 
-      face my-destination
-      move-to my-destination
-      fd 1
-      if distance my-destination < 0.5 [ ;
-        die
-      ]
-    ]
-  ]
-  ask bikes [
-    if my-destination != nobody [
-      face my-destination
-      move-to my-destination
-      fd 1
-      if distance my-destination < 0.5 [ ;
-        die
-      ]
-    ]
-  ]
-end
-
-;; Interaction and Obstacle Layer
 to move
-  if ticks >= 3600 [ stop ]
-  set time precision (time + dt) 5
-  tick-advance 1
-
-  ;; Pedestrians
-  ask peds [
-    if state = 1 [
-      ;; Initialize repulsion forces
-      let repx 0
-      let repy 0
-     if my-destination != nobody and my-destination != 0 and is-patch? my-destination [
-        set initialheading towards my-destination
-      ]
-        ;; Fallback behavior if my-destination is invalid
-
-        set initialheading random 360  ;; Assign a random heading
-
-
-      ;; Avoid both other pedestrians and bikes with SFT
-      ask (other peds in-radius (D)) [
-        let dist-ped distance myself
-        if dist-ped > 0 [
-          set repx repx + A * exp((1 - dist-ped) / D) * sin(towards myself) * (1 - cos(towards myself - initialheading))
-          set repy repy + A * exp((1 - dist-ped) / D) * cos(towards myself) * (1 - cos(towards myself - initialheading))
-        ]
-      ]
-      ask ( bikes in-radius (D)) [
-        let dist-bike distance myself
-        if dist-bike > 0 [
-          set repx repx + A * exp((1 - dist-bike) / D) * sin(towards myself)
-          set repy repy + A * exp((1 - dist-bike) / D) * cos(towards myself)
-        ]
-      ]
-
-      ;; Avoid obstacles
-      ask patches with [obstacle?] in-radius (1.5 * D) [
-        let dist-obs distance myself
-        if dist-obs > 0 [
-          set repx repx + A * exp((1 - dist-obs) / D) * sin(towards myself)
-          set repy repy + A * exp((1 - dist-obs) / D) * cos(towards myself)
-        ]
-      ]
-
-      ;; Check if current-target is valid before using towards
-      if my-destination != nobody [
-  face my-destination
-      ]
-
-      ;; Adjust movement with repulsion and path-following
-      set speedx speedx + dt * (repx + (V0-ped * sin initialheading - speedx) / Tr)
-      set speedy speedy + dt * (repy + (V0-ped * cos initialheading - speedy) / Tr)
-
-       ;; Limit Pedestrian Speed
-      let current-speed-mps sqrt (speedx ^ 2 + speedy ^ 2) ; Current speed in meters per second
-      let min-ped-speed-mps (4 / 3.6)             ; Convert 4 km/h to m/s
-      let max-ped-speed-mps (6 / 3.6)             ; Convert 6 km/h to m/s
-
-      if current-speed-mps < min-ped-speed-mps [
-        let scale-factor min-ped-speed-mps / current-speed-mps
-        set speedx speedx * scale-factor
-        set speedy speedy * scale-factor
-      ]
-      if current-speed-mps > max-ped-speed-mps [
-        let scale-factor max-ped-speed-mps / current-speed-mps
-        set speedx speedx * scale-factor
-        set speedy speedy * scale-factor
-      ]
-
-      ;; Update heading
-      let total-vx (V0-ped * sin initialheading) + repx
-      let total-vy (V0-ped * cos initialheading) + repy
-      set heading atan total-vx total-vy
-
-      ;; Move agent based on computed speeds
-      let next-patch patch-at (xcor + speedx * dt) (ycor + speedy * dt)
-      if next-patch != nobody and member? next-patch study-area-patches [
-        move-to next-patch
-      ]
-      ;; Check for break
-      let stop-probability [waiting] of patch-here  ;; get the patch's value
-if (random-float 1 < stop-probability) [
-  set state 0  ;; stop the pedestrian
-]
-
-    ]
-
-    ;; Handle state 0: Pedestrian is on a break (not moving)
-    if state = 0 [
-      if break-timer = 0 [
-      set break-timer random 5 + 1 ;; Random value between 1 and 5
-    ]
-
-    ;; Ensure the agent remains stationary
-    set speedx 0
-    set speedy 0
-
-    ;; Countdown the break-timer
-    set break-timer break-timer - 1
-
-    ;; Check if the break-timer has expired
-    if break-timer <= 0 [
-      set state 1 ;; Resume movement after the break
-    ]
-  ]
-  ;; Bikes
-  ask bikes [
-    if state = 1 [
-      ;; Initialize repulsion forces
-      let repx 0
-      let repy 0
-      if my-destination != nobody [
-  set initialheading towards my-destination
-]
-
-      ;; Avoid both other bikes and pedestrians using SFT
-      ask (other bikes in-radius (1.5 * D)) [
-        let dist-bike distance myself
-        if dist-bike > 0 [
-          set repx repx + A * exp((1 - dist-bike) / D) * sin(towards myself) * (1 - 0.5 * cos(towards myself - initialheading))
-          set repy repy + A * exp((1 - dist-bike) / D) * cos(towards myself) * (1 - 0.5 * cos(towards myself - initialheading))
-        ]
-      ]
-      ask (peds in-radius (1.5 * D)) [
-        let dist-ped distance myself
-        if dist-ped > 0 [
-          set repx repx + A * exp((1 - dist-ped) / D) * sin(towards myself)
-          set repy repy + A * exp((1 - dist-ped) / D) * cos(towards myself)
-        ]
-      ]
-
-      ;; Avoid obstacles
-      ask patches with [obstacle?] in-radius (1.8 * D) [
-        let dist-obs distance myself
-        if dist-obs > 0 [
-          set repx repx + A * exp((1 - dist-obs) / D) * sin(towards myself)
-          set repy repy + A * exp((1 - dist-obs) / D) * cos(towards myself)
-        ]
-      ]
-
-      ;; Check if current-target is valid before using towards
-     if my-destination != nobody [
-  face my-destination
-]
-
-      ;; Adjust movement while preserving angular inertia
-      set speedx speedx + dt * (repx + (V0-bike * sin initialheading - speedx) / (Tr * 2))
-      set speedy speedy + dt * (repy + (V0-bike * cos initialheading - speedy) / (Tr * 2))
-
-      ;;  Limit Bike Speed
-      let current-speed-mps sqrt (speedx ^ 2 + speedy ^ 2) ; Current speed in meters per second
-      let min-bike-speed-mps (14 / 3.6)            ; Convert 14 km/h to m/s
-      let max-bike-speed-mps (18 / 3.6)            ; Convert 18 km/h to m/s
-
-      if current-speed-mps < min-bike-speed-mps [
-        let scale-factor min-bike-speed-mps / current-speed-mps
-        set speedx speedx * scale-factor
-        set speedy speedy * scale-factor
-      ]
-      if current-speed-mps > max-bike-speed-mps [
-        let scale-factor max-bike-speed-mps / current-speed-mps
-        set speedx speedx * scale-factor
-        set speedy speedy * scale-factor
-      ]
-
-
-      ;; Angular inertia: smooth direction changes
-     if my-destination != nobody [
-      let total-vx (V0-ped * sin initialheading) + repx
-      let total-vy (V0-ped * cos initialheading) + repy
-      set intendedheading atan total-vx total-vy
-  set heading heading + (intendedheading - heading) * 0.2
-]
-
-      ;; Move bike based on computed speeds
-      let next-patch patch-at (xcor + speedx * dt) (ycor + speedy * dt)
-      if next-patch != nobody and member? next-patch study-area-patches [
-        move-to next-patch
-      ]
-
-      ;; Check for break
-      let stop-probability [waiting] of patch-here  ;; get the patch's value
-if (random-float 1 < stop-probability) [
-  set state 0  ;; stop the pedestrian
-]
-
-    ]
-
-    ;; Handle state 0: Bike is on a break (not moving)
-    if state = 0 [
-      if break-timer = 0 [
-      set break-timer random 5 + 1 ;; Random value between 1 and 5
-    ]
-
-    ;; Ensure the agent remains stationary
-    set speedx 0
-    set speedy 0
-
-    ;; Countdown the break-timer
-    set break-timer break-timer - 1
-
-    ;; Check if the break-timer has expired
-    if break-timer <= 0 [
-      set state 1 ;; Resume movement after the break
-    ]
-  ]
-  ]
-  ]
-  ;; Additional simulation updates
-  move-to-goal
-  check-conflict
-  update-stats-and-flow
+  tick
+  go
+  if ticks = 3600 [ stop ]
 end
 
+to go
+spawn-agents
+ask peds [
+  if my-destination != nobody and is-patch? my-destination [
+  face my-destination
+  let effective-speed sqrt ((speedx ^ 2) + (speedy ^ 2))
+
+      ; Use fd with effective speed scaled by dt
+      fd (effective-speed * dt)
+
+    if distance my-destination < 5 [
+      move-to my-destination
+      die
+      set state 0
+        set color white
+    ]
+  ]
+
+  if my-destination = nobody [
+    print (word "Pedestrian " self " has no valid destination!")
+  ]
+]
+  ask bikes [
+  if my-destination != nobody and is-patch? my-destination [
+    face my-destination
+    let effective-speed sqrt ((speedx ^ 2) + (speedy ^ 2))
+
+      ; Use fd with effective speed scaled by dt
+      fd (effective-speed * dt)
+
+    if distance my-destination < 5 [
+      move-to my-destination
+      die
+      set state 0
+      set color white
+    ]
+  ]
+
+  if my-destination = nobody [
+    print (word "Pedestrian " self " has no valid destination!")
+  ]
+]
+    update-stats-and-flow
+end
 
 ;; Part 3: Define the spatial attributes of the model
-
 
 ;; Define the study area
 to-report is-in-study-area? [study-patch]
   let in-area? false
   foreach gis:feature-list-of dataset [
     [feature] ->
-    let function-value gis:property-value feature "function"
-    if (function-value = 0 or function-value = 1 or function-value = 2 or function-value = 3 or function-value = 4 or function-value = 666) and gis:intersects? study-patch feature [
+    let id-value gis:property-value feature "id"
+    if (id-value = 1) and gis:intersects? study-patch feature [
       set in-area? true
     ]
   ]
   report in-area?
 end
 
-;; Define the destination patches in NSEW
 to classify-destination-patches
   ask patches [
     ; Debugging information
@@ -542,45 +313,13 @@ to classify-destination-patches
   ]
 end
 
-;; Define obstacles: pillars and people who are not moving
-to define-obstacles
-  ask patches [
-    set obstacle? false
-    let my-polygon nobody
-    foreach gis:feature-list-of dataset [
-      [feature] ->
-      if gis:intersects? self feature [
-        set my-polygon feature
-      ]
-    ]
-    ; Define pillars as obstacles
-    if my-polygon != nobody [
-      let polygon-id gis:property-value my-polygon "function"
-      if polygon-id = 666 [
-        set obstacle? true
-        set pcolor pink  ;; Mark obstacles visually
-      ]
-    ]
-  ]
-
-  ; Mark agents with state = 0 as obstacles
-  ask peds with [state = 0] [
-    set obstacle? true
-    set color white  ;; Mark resting pedestrians visually
-  ]
-  ask bikes with [state = 0] [
-    set obstacle? true
-    set color white  ;; Mark resting pedestrians visually
-  ]
-end
-
 
 ;; Part 4: Log the outcomes of each simulation
 
 ;; Define outputs
 to update-stats-and-flow
-  let peds-with-speed [ self ] of peds with [state > -1]
-  let bikes-with-speed [ self ] of bikes with [state > -1]
+  let peds-with-speed [ self ] of peds with [state = 1]
+  let bikes-with-speed [ self ] of bikes with [state = 1]
 
   ; Update mean and standard deviation of speed for peds
   if not empty? peds-with-speed [
@@ -624,105 +363,40 @@ to update-stats-and-flow
   plot! ; Update the plots
 end
 
-to setup-destination-tables
-  ;; Hardcoded origin-destination-probability table
-  set destination-tables [
-    ["N" "north" 0.01]
-    ["N" "south" 0.4]
-    ["N" "east" 0.3]
-    ["N" "west" 0.29]
-    ["S" "north" 0.45]
-    ["S" "south" 0.01]
-    ["S" "east" 0.3]
-    ["S" "west" 0.3]
-    ["E" "north" 0.4]
-    ["E" "south" 0.3]
-    ["E" "east" 0.01]
-    ["E" "west" 0.29]
-    ["W" "north" 0.4]
-    ["W" "south" 0.3]
-    ["W" "E" 0.29]
-    ["W" "west" 0.01]
-  ]
-end
 
-;; Check conflict in  study area
-to check-conflict
-  ask turtles [
-    let my-polygon nobody
-    foreach gis:feature-list-of waitingpoint [
-      [feature] ->
-      if gis:intersects? patch-here feature [
-        set my-polygon feature
-      ]
-    ]
 
-    ;; Only proceed if the turtle is in a relevant polygon
-    if my-polygon != nobody [
-      let polygon-id gis:property-value my-polygon "ID"
-      if member? polygon-id [1 2 3 4 5 6 7 8] [
-        let severe-count 0
-        let moderate-count 0
-        let mild-count 0
-
-        ;; Check all other agents
-        ask other turtles [
-          let distancetoother distance myself  ;; Calculate distance between agents
-
-          ;; Categorize conflict severity
-          if distancetoother <= 1.5 [set severe-count severe-count + 1]
-          if distancetoother > 1.5 and d <= 2.5 [set moderate-count moderate-count + 1]
-          if distancetoother > 2.5 and d <= 3.5 [set mild-count mild-count + 1]
-        ]
-
-        ;; Store results in the table
-        ifelse table:has-key? conflict-table polygon-id [
-          ;; Get old values and update them
-          let old-values table:get conflict-table polygon-id
-          table:put conflict-table polygon-id (list
-            (item 0 old-values + severe-count)
-            (item 1 old-values + moderate-count)
-            (item 2 old-values + mild-count)
-          )
-        ]
-        [
-          ;; If polygon ID is not in the table yet, add it
-          table:put conflict-table polygon-id (list severe-count moderate-count mild-count)
-        ]
-      ]
-    ]
-  ]
-end
-
-;; Output conflict
-to report-conflicts
-  print "Polygon ID | Severe | Moderate | Mild"
-  foreach table:keys conflict-table [
-    ? -> let data table:get conflict-table ?
-    print (word ? " | " item 0 data " | " item 1 data " | " item 2 data)
-  ]
-end
 
 ;; Plot your output!
 to plot!
-  set-current-plot "Speed"
-  set-current-plot-pen "Mean"
-  plotxy time (mean-speed / ticks)
-  set-current-plot-pen "Stddev"
-  plotxy time (stddev-speed / ticks)
-  set-current-plot "Mean flow"
-  set-plot-y-range 0 2
-  set-current-plot-pen "Spatial"
-  plotxy time ((mean-speed / ticks) * Nb-peds / world-width / world-height)
-  set-current-plot-pen "Temporal"
-  plotxy time (flow-cum / time / world-height)
+  if ticks > 0 [
+
+    set-current-plot "Speed"
+    set-current-plot-pen "Mean"
+    plotxy time (mean-speed / ticks)
+
+    set-current-plot-pen "Stddev"
+    plotxy time (stddev-speed / ticks)
+
+    set-current-plot "Mean flow"
+    set-plot-y-range 0 2
+
+    set-current-plot-pen "Spatial"
+    if world-width > 0 and world-height > 0 [
+      plotxy time ((mean-speed / ticks) * Nb-peds / world-width / world-height)
+    ]
+
+    set-current-plot-pen "Temporal"
+    if world-height > 0 [
+      plotxy ticks (flow-cum / ticks / world-height)
+    ]
+  ]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
 542
 11
-960
-430
+1160
+230
 -1
 -1
 10.0
@@ -735,10 +409,10 @@ GRAPHICS-WINDOW
 1
 1
 1
--20
-20
--20
-20
+-30
+30
+-10
+10
 0
 0
 1
@@ -753,8 +427,8 @@ SLIDER
 Nb-peds
 Nb-peds
 0
-224
-100.0
+7000
+6182.0
 1
 1
 NIL
@@ -981,7 +655,7 @@ p
 p
 0
 1
-1.0
+0.35
 .05
 1
 NIL
@@ -995,8 +669,8 @@ SLIDER
 Nb-Bikes
 Nb-Bikes
 0
-300
-100.0
+7000
+5182.0
 1
 1
 NIL
@@ -1011,7 +685,7 @@ ped_S
 ped_S
 0
 1
-0.6
+1.0
 .1
 1
 NIL
@@ -1026,7 +700,7 @@ ped_N
 ped_N
 0
 1
-0.9
+0.0
 .1
 1
 NIL
@@ -1041,7 +715,7 @@ ped_E
 ped_E
 0
 1
-0.8
+0.0
 .1
 1
 NIL
@@ -1056,7 +730,7 @@ ped_W
 ped_W
 0
 1
-0.4
+0.0
 .1
 1
 NIL
@@ -1071,7 +745,7 @@ bik_N
 bik_N
 0
 1
-0.7
+0.4
 0.1
 1
 NIL
@@ -1086,7 +760,7 @@ bik_S
 bik_S
 0
 1
-0.9
+1.0
 .1
 1
 NIL
@@ -1101,7 +775,7 @@ bik_E
 bik_E
 0
 1
-0.6
+0.5
 .1
 1
 NIL
@@ -1116,7 +790,7 @@ bik_W
 bik_W
 0
 1
-0.7
+0.5
 .1
 1
 NIL
@@ -1131,7 +805,7 @@ D
 D
 0
 5
-0.1
+4.8
 0.1
 1
 NIL
@@ -1146,7 +820,7 @@ V0-ped
 V0-ped
 0
 10
-10.0
+4.0
 1
 1
 NIL
