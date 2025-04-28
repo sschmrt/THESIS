@@ -26,8 +26,8 @@ to setup
   set num-bikers 0
 
   ; Load the GeoJSON dataset
-  set dataset gis:load-dataset "C:/Users/marta/Desktop/THESIS/InputLayers/Thesis_Simple.geojson"
-  set waitingpoint gis:load-dataset "C:/Users/marta/Desktop/THESIS/InputLayers/waiting_area.geojson"
+  set dataset gis:load-dataset "C:/Users/marta/Desktop/THESIS/Layers/Thesis_Simple.geojson"
+  set waitingpoint gis:load-dataset "C:/Users/marta/Desktop/THESIS/Layers/Zones.geojson"
 
   ; Draw dataset for visualization
   gis:set-drawing-color red
