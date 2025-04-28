@@ -8,7 +8,7 @@ extensions [gis table csv]
 breed [peds ped]
 breed [bikes bike]
 
-globals [num-pedestrians num-bikers dead-agents conflict-table destination-features destination-tables time mean-speed stddev-speed flow-cum polygons waitingpoint dataset wgs84-dataset study-area-patches]
+globals [num-pedestrians num-bikers dead-agents conflict-table destination-features destination-tables time mean-speed-bike mean-speed-ped stddev-speed-bike stddev-speed-ped flow-cum-bike flow-cum-ped  polygons waitingpoint dataset wgs84-dataset study-area-patches]
 peds-own [speedx speedy state my-destination origin]
 bikes-own [speedx speedy state my-destination origin]
 patches-own [ obstacle? destination-type function-id waiting destination-patch ]
@@ -165,8 +165,8 @@ to assign-destinations
     if my-destination != nobody [
       let random-value random-float 1
       if origin = "south" [
-        if random-value < 0 [ set my-destination one-of patches with [destination-type = "south" ]]
-        if random-value >= 0 and random-value < 0 [ set my-destination one-of patches with [destination-type = "east" ]]
+        if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "south" ]]
+        if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "east" ]]
         if random-value >= 0.1 and random-value < 1 [ set my-destination one-of patches with [destination-type = "west" ]]
         if random-value >= 0 [ set my-destination one-of patches with [destination-type = "north" ]]
       ]
@@ -230,6 +230,38 @@ to assign-destinations
   ]
 end
 
+;Ferry
+to timed-spawn-agents
+  ;; Check if it's time to spawn agents (every 5 ticks)
+  if ticks mod 5 = 0 [
+
+    ;; Spawn x pedestrians and bikes from the north
+    if any? patches with [destination-type = "north"] [
+      create-peds 100 [
+        move-to one-of patches with [destination-type = "north"]
+        set num-pedestrians num-pedestrians + 100
+        set state 1
+        set origin "N"
+        set shape "circle"
+        set color magenta
+        set size 0.3
+        assign-destinations
+      ]
+      create-bikes 100 [
+        move-to one-of patches with [destination-type = "north"]
+        set num-pedestrians num-pedestrians + 100
+        set state 1
+        set origin "N"
+        set shape "circle"
+        set color magenta
+        set size 0.42
+        assign-destinations
+      ]
+    ]
+  ]
+end
+
+
 ;; Part 2: Multilayered approach to modelling
 
 ;; Pathfinding Layer
@@ -256,7 +288,7 @@ ask peds [
       pen-up
       set dead-agents dead-agents + 1
       set state 0
-        set color white
+      set color white
     ]
   ]
 
@@ -329,49 +361,44 @@ end
 
 ;; Define outputs
 to update-stats-and-flow
-  let peds-with-speed [ self ] of peds with [state = 1]
-  let bikes-with-speed [ self ] of bikes with [state = 1]
-
-  ; Update mean and standard deviation of speed for peds
-  if not empty? peds-with-speed [
-    let peds-agentset turtle-set peds-with-speed
-    set mean-speed mean-speed + mean [sqrt(speedx ^ 2 + speedy ^ 2)] of peds-agentset
-    if count peds-agentset > 1 [
-      set stddev-speed stddev-speed + sqrt(variance [sqrt(speedx ^ 2 + speedy ^ 2)] of peds-agentset)
+  ;; Update stats for pedestrians
+  let peds-with-speed peds with [state = 1]
+  if any? peds-with-speed [
+    set mean-speed-ped mean [sqrt (speedx ^ 2 + speedy ^ 2)] of peds-with-speed
+    if count peds-with-speed > 1 [
+      set stddev-speed-ped sqrt variance [sqrt (speedx ^ 2 + speedy ^ 2)] of peds-with-speed
     ]
   ]
 
-  ; Update mean and standard deviation of speed for bikes
-  if not empty? bikes-with-speed [
-    let bikes-agentset turtle-set bikes-with-speed
-    set mean-speed mean-speed + mean [sqrt(speedx ^ 2 + speedy ^ 2)] of bikes-agentset
-    if count bikes-agentset > 1 [
-      set stddev-speed stddev-speed + sqrt(variance [sqrt(speedx ^ 2 + speedy ^ 2)] of bikes-agentset)
+  ;; Update stats for bikes
+  let bikes-with-speed bikes with [state = 1]
+  if any? bikes-with-speed [
+    set mean-speed-bike mean [sqrt (speedx ^ 2 + speedy ^ 2)] of bikes-with-speed
+    if count bikes-with-speed > 1 [
+      set stddev-speed-bike sqrt variance [sqrt (speedx ^ 2 + speedy ^ 2)] of bikes-with-speed
     ]
   ]
 
-  ; Update cumulative flow for peds crossing the center
+  ;; Update cumulative flow for pedestrians crossing the center
   ask peds with [
     (xcor > 0 and xcor - speedx * dt <= 0) or
     (xcor < 0 and xcor - speedx * dt >= 0) or
     (ycor > 0 and ycor - speedy * dt <= 0) or
     (ycor < 0 and ycor - speedy * dt >= 0)
   ] [
-    set flow-cum flow-cum + 1
+    set flow-cum-ped flow-cum-ped + 1
   ]
 
-  ; Update cumulative flow for bikes crossing the center
+  ;; Update cumulative flow for bikes crossing the center
   ask bikes with [
     (xcor > 0 and xcor - speedx * dt <= 0) or
     (xcor < 0 and xcor - speedx * dt >= 0) or
     (ycor > 0 and ycor - speedy * dt <= 0) or
     (ycor < 0 and ycor - speedy * dt >= 0)
   ] [
-    set flow-cum flow-cum + 1
+    set flow-cum-bike flow-cum-bike + 1
   ]
-
-
-  plot! ; Update the plots
+  plot!
 end
 
 
@@ -380,26 +407,29 @@ end
 ;; Plot your output!
 to plot!
   if ticks > 0 [
+    ;; Plot pedestrian speeds
+    set-current-plot "Pedestrian Speed"
+    set-current-plot-pen "MeanP"
+    plot mean-speed-ped
+    set-current-plot-pen "StddevP"
+    plot stddev-speed-ped
 
-    set-current-plot "Speed"
-    set-current-plot-pen "Mean"
-    plotxy time (mean-speed / ticks)
+    ;; Plot bike speeds
+    set-current-plot "Bike Speed"
+    set-current-plot-pen "MeanB"
+    plot mean-speed-bike
+    set-current-plot-pen "StddevB"
+    plot stddev-speed-bike
 
-    set-current-plot-pen "Stddev"
-    plotxy time (stddev-speed / ticks)
+    ;; Plot pedestrian flow
+    set-current-plot "Pedestrian Flow"
+    set-current-plot-pen "Flow"
+    plot flow-cum-ped / ticks
 
-    set-current-plot "Mean flow"
-    set-plot-y-range 0 2
-
-    set-current-plot-pen "Spatial"
-    if world-width > 0 and world-height > 0 [
-      plotxy time ((mean-speed / ticks) * Nb-peds / world-width / world-height)
-    ]
-
-    set-current-plot-pen "Temporal"
-    if world-height > 0 [
-      plotxy ticks (flow-cum / ticks / world-height)
-    ]
+    ;; Plot bike flow
+    set-current-plot "Bike Flow"
+    set-current-plot-pen "Flow"
+    plot flow-cum-bike / ticks
   ]
 end
 @#$#@#$#@
@@ -417,7 +447,7 @@ GRAPHICS-WINDOW
 1
 1
 0
-1
+0
 0
 1
 -30
@@ -484,7 +514,7 @@ PLOT
 324
 506
 444
-Mean flow
+Pedestrian Flow
 Time
 Flow
 0.0
@@ -495,15 +525,14 @@ true
 true
 "" ""
 PENS
-"Spatial" 1.0 0 -11053225 true "" ""
-"Temporal" 1.0 0 -11881837 true "" ""
+"Flow" 1.0 0 -11053225 true "" ""
 
 PLOT
 204
 70
 505
 190
-Speed
+Pedestrian Speed
 Time
 Speed
 0.0
@@ -514,8 +543,8 @@ true
 true
 "" ""
 PENS
-"Mean" 1.0 0 -11053225 true "" ""
-"Stddev" 1.0 0 -11881837 true "" ""
+"MeanP" 1.0 0 -11053225 true "" ""
+"StddevP" 1.0 0 -11881837 true "" ""
 
 SLIDER
 105
@@ -539,39 +568,6 @@ MONITOR
 55
 Mean speed
 mean [sqrt(speedx ^ 2 + speedy ^ 2)] of peds with [state > -1]
-5
-1
-11
-
-MONITOR
-240
-10
-317
-55
-Speed stddev
-stddev-speed / ticks
-5
-1
-11
-
-MONITOR
-105
-10
-163
-55
-Density
-Nb-peds / world-width / world-height
-5
-1
-11
-
-MONITOR
-320
-10
-381
-55
-Flow
-flow-cum / time / world-height
 5
 1
 11
@@ -696,7 +692,7 @@ ped_S
 ped_S
 0
 1
-1.0
+0.3
 .1
 1
 NIL
@@ -711,7 +707,7 @@ ped_N
 ped_N
 0
 1
-0.0
+0.3
 .1
 1
 NIL
@@ -726,7 +722,7 @@ ped_E
 ped_E
 0
 1
-0.0
+0.3
 .1
 1
 NIL
@@ -741,7 +737,7 @@ ped_W
 ped_W
 0
 1
-0.0
+0.1
 .1
 1
 NIL
@@ -756,7 +752,7 @@ bik_N
 bik_N
 0
 1
-0.0
+0.1
 0.1
 1
 NIL
@@ -771,7 +767,7 @@ bik_S
 bik_S
 0
 1
-1.0
+0.3
 .1
 1
 NIL
@@ -786,7 +782,7 @@ bik_E
 bik_E
 0
 1
-0.0
+0.3
 .1
 1
 NIL
@@ -801,7 +797,7 @@ bik_W
 bik_W
 0
 1
-0.5
+0.3
 .1
 1
 NIL
@@ -869,6 +865,43 @@ num-bikers
 17
 1
 11
+
+PLOT
+777
+279
+977
+429
+Bike Speed
+Time
+Speed
+0.0
+10.0
+0.0
+10.0
+false
+false
+"" ""
+PENS
+"MeanB" 1.0 0 -16777216 true "" ""
+"STddevB" 1.0 0 -7500403 true "" ""
+
+PLOT
+573
+400
+773
+550
+Bike Flow
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"Flow" 1.0 0 -16777216 true "" ""
 
 @#$#@#$#@
 ## WHAT IS IT?
