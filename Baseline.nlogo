@@ -2,6 +2,7 @@
 ; Msc Urban Environmental Management
 ; Master Thesis
 ; Supervisor Arend Ligtenberg
+; This was my old code
 
 extensions [gis table csv]
 
@@ -25,8 +26,8 @@ to setup
   set conflict-table table:make
 
   ; Load the GeoJSON dataset
-  set dataset gis:load-dataset "C:/Users/marta/Desktop/THESIS/InputLayers/Thesis_Simple.geojson"
-  set waitingpoint gis:load-dataset "C:/Users/marta/Desktop/THESIS/InputLayers/waiting_area.geojson"
+  set dataset gis:load-dataset "C:/Users/marta/Desktop/THESIS/Layers/Thesis_Simple.geojson"
+  set waitingpoint gis:load-dataset "C:/Users/marta/Desktop/THESIS/Layers/Zones.geojson"
 
   ; Draw dataset for visualization
   gis:set-drawing-color red
@@ -63,6 +64,7 @@ to spawn-agents
     if any? patches with [destination-type = "north"] [
       create-peds 1 [
         move-to one-of patches with [destination-type = "north"]
+        pen-down
         set state 1
         set break-timer 0
         set origin "N"
