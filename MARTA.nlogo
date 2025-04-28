@@ -8,7 +8,7 @@ extensions [gis table csv]
 breed [peds ped]
 breed [bikes bike]
 
-globals [conflict-table destination-features destination-tables time mean-speed stddev-speed flow-cum polygons waitingpoint dataset wgs84-dataset study-area-patches]
+globals [num-pedestrians num-bikers dead-agents conflict-table destination-features destination-tables time mean-speed stddev-speed flow-cum polygons waitingpoint dataset wgs84-dataset study-area-patches]
 peds-own [speedx speedy state my-destination origin]
 bikes-own [speedx speedy state my-destination origin]
 patches-own [ obstacle? destination-type function-id waiting destination-patch ]
@@ -21,9 +21,12 @@ to setup
   clear-all
   reset-ticks
   tick
+  set dead-agents 0
+  set num-pedestrians 0
+  set num-bikers 0
 
   ; Load the GeoJSON dataset
-  set dataset gis:load-dataset "C:/Users/marta/Desktop/THESIS/ImputLayers/Thesis_Simple.geojson"
+  set dataset gis:load-dataset "C:/Users/marta/Desktop/THESIS/InputLayers/Thesis_Simple.geojson"
   set waitingpoint gis:load-dataset "C:/Users/marta/Desktop/THESIS/InputLayers/waiting_area.geojson"
 
   ; Draw dataset for visualization
@@ -50,6 +53,7 @@ to c-ped
     set shape "circle"
     set color cyan
     set size .4
+    set num-pedestrians num-pedestrians + 1
 
     ;; Assign a direction based on the slider probabilities (total = 1)
     let direction random-float 1
@@ -87,6 +91,7 @@ to c-bik
     set shape "circle"
     set color blue
     set size .5
+    set num-bikers num-bikers + 1
 
     ;; Assign a direction based on the slider probabilities (total = 1)
     let direction random-float 1
@@ -156,6 +161,7 @@ end
 ;; Rules for destinations
 to assign-destinations
   ask peds [
+    pen-down
     if my-destination != nobody [
       let random-value random-float 1
       if origin = "south" [
@@ -190,6 +196,7 @@ to assign-destinations
 
   ;; Assign destinations for bikes
    ask bikes [
+    pen-down
     if my-destination != nobody [
       let random-value random-float 1
       if origin = "south" [
@@ -243,9 +250,11 @@ ask peds [
       ; Use fd with effective speed scaled by dt
       fd (effective-speed * dt)
 
-    if distance my-destination < 5 [
+    if distance my-destination < 10 [
       move-to my-destination
       die
+      pen-up
+      set dead-agents dead-agents + 1
       set state 0
         set color white
     ]
@@ -263,9 +272,11 @@ ask peds [
       ; Use fd with effective speed scaled by dt
       fd (effective-speed * dt)
 
-    if distance my-destination < 5 [
+    if distance my-destination < 10 [
       move-to my-destination
       die
+      pen-up
+      set dead-agents dead-agents + 1
       set state 0
       set color white
     ]
@@ -407,7 +418,7 @@ GRAPHICS-WINDOW
 1
 0
 1
-1
+0
 1
 -30
 30
@@ -428,7 +439,7 @@ Nb-peds
 Nb-peds
 0
 7000
-6182.0
+4182.0
 1
 1
 NIL
@@ -670,7 +681,7 @@ Nb-Bikes
 Nb-Bikes
 0
 7000
-5182.0
+3364.0
 1
 1
 NIL
@@ -745,7 +756,7 @@ bik_N
 bik_N
 0
 1
-0.4
+0.0
 0.1
 1
 NIL
@@ -775,7 +786,7 @@ bik_E
 bik_E
 0
 1
-0.5
+0.0
 .1
 1
 NIL
@@ -825,6 +836,39 @@ V0-ped
 1
 NIL
 HORIZONTAL
+
+MONITOR
+561
+260
+693
+305
+Reached Destination
+dead-agents
+17
+1
+11
+
+MONITOR
+565
+324
+622
+369
+# Peds
+num-pedestrians
+17
+1
+11
+
+MONITOR
+655
+341
+715
+386
+# Bikers
+num-bikers
+17
+1
+11
 
 @#$#@#$#@
 ## WHAT IS IT?
