@@ -8,7 +8,7 @@ extensions [gis table csv]
 breed [peds ped]
 breed [bikes bike]
 
-globals [num-pedestrians num-bikers dead-agents conflict-table destination-features destination-tables time mean-speed-bike mean-speed-ped stddev-speed-bike stddev-speed-ped flow-cum-bike flow-cum-ped  polygons waitingpoint dataset wgs84-dataset study-area-patches]
+globals [total-severe total-moderate total-mild num-pedestrians num-bikers num-agents dead-agents destination-features destination-tables time mean-speed mean-speed-bike mean-speed-ped stddev-speed-bike stddev-speed-ped flow-cum polygons waitingpoint dataset wgs84-dataset study-area-patches]
 peds-own [speedx speedy state my-destination origin]
 bikes-own [speedx speedy state my-destination origin]
 patches-own [ obstacle? destination-type function-id waiting destination-patch ]
@@ -24,6 +24,10 @@ to setup
   set dead-agents 0
   set num-pedestrians 0
   set num-bikers 0
+
+   set total-severe 0
+  set total-moderate 0
+  set total-mild 0
 
   ; Load the GeoJSON dataset
   set dataset gis:load-dataset "C:/Users/marta/Desktop/THESIS/Layers/Thesis_Simple.geojson"
@@ -42,6 +46,8 @@ to setup
 
   ; Identify waiting patches
   gis:apply-coverage waitingpoint "WAITING" waiting
+
+
 
   ; Initialize variables
   spawn-agents
@@ -129,9 +135,9 @@ to spawn-agents
   let peds-per-tick Nb-peds / 3600
   let bikes-per-tick Nb-bikes / 3600
 
-  ;; Use round to determine how many to emit per tick
-  let peds-to-emit round peds-per-tick
-  let bikes-to-emit round bikes-per-tick
+  ;; Add randomness to the rounding
+  let peds-to-emit ifelse-value (random-float 1 < peds-per-tick - floor peds-per-tick) [floor peds-per-tick + 1] [floor peds-per-tick]
+  let bikes-to-emit ifelse-value (random-float 1 < bikes-per-tick - floor bikes-per-tick) [floor bikes-per-tick + 1] [floor bikes-per-tick]
 
   ;; Emit pedestrians
   repeat peds-to-emit [
@@ -237,28 +243,34 @@ to timed-spawn-agents
 
     ;; Spawn x pedestrians and bikes from the north
     if any? patches with [destination-type = "north"] [
-      create-peds 100 [
+      repeat 100 [
+      create-peds 1 [
         move-to one-of patches with [destination-type = "north"]
-        set num-pedestrians num-pedestrians + 100
+        set num-pedestrians num-pedestrians + 1
         set state 1
         set origin "N"
         set shape "circle"
         set color magenta
         set size 0.3
         assign-destinations
+        assign-pedspeed
       ]
-      create-bikes 100 [
+      ]
+        repeat 100 [
+      create-bikes 1 [
         move-to one-of patches with [destination-type = "north"]
-        set num-pedestrians num-pedestrians + 100
+        set num-bikers num-bikers + 1
         set state 1
         set origin "N"
         set shape "circle"
         set color magenta
         set size 0.42
         assign-destinations
+        assign-bikespeed
       ]
     ]
   ]
+    ]
 end
 
 
@@ -282,13 +294,13 @@ ask peds [
       ; Use fd with effective speed scaled by dt
       fd (effective-speed * dt)
 
-    if distance my-destination < 10 [
+    if distance my-destination <  1 [
       move-to my-destination
-      die
       pen-up
       set dead-agents dead-agents + 1
       set state 0
       set color white
+      die
     ]
   ]
 
@@ -304,13 +316,13 @@ ask peds [
       ; Use fd with effective speed scaled by dt
       fd (effective-speed * dt)
 
-    if distance my-destination < 10 [
+    if distance my-destination < 1 [
       move-to my-destination
-      die
       pen-up
       set dead-agents dead-agents + 1
       set state 0
       set color white
+      die
     ]
   ]
 
@@ -318,7 +330,9 @@ ask peds [
     print (word "Pedestrian " self " has no valid destination!")
   ]
 ]
-    update-stats-and-flow
+ check-conflict
+ ;timed-spawn-agents
+  update-stats-and-flow
 end
 
 ;; Part 3: Define the spatial attributes of the model
@@ -359,6 +373,51 @@ end
 
 ;; Part 4: Log the outcomes of each simulation
 
+;; Check conflict in  study area
+to check-conflict
+  ;; Reset conflict counters for this step
+  let step-severe 0
+  let step-moderate 0
+  let step-mild 0
+
+  ask turtles [
+    ask other turtles [
+      let distancetoother distance myself  ;; Calculate distance between agents
+
+      ;; Categorize conflict severity and update step counters
+      if distancetoother <= 1.5 [
+        set step-severe step-severe + 1
+      ]
+      if distancetoother > 1.5 and distancetoother <= 2.5 [
+        set step-moderate step-moderate + 1
+      ]
+      if distancetoother > 2.5 and distancetoother <= 3.5 [
+        set step-mild step-mild + 1
+      ]
+    ]
+  ]
+
+  ;; Add step counters to global totals
+  set total-severe total-severe + step-severe
+  set total-moderate total-moderate + step-moderate
+  set total-mild total-mild + step-mild
+
+  ;; Update the histogram
+  update-histogram
+end
+
+to update-histogram
+  ;; Clear the plot
+  clear-plot
+
+  ;; Update the histogram with the current totals
+  set-current-plot "Conflict Histogram"
+  set-current-plot-pen "Conflicts"
+  plotxy 1 total-severe   ;; X=1 for Severe
+  plotxy 2 total-moderate ;; X=2 for Moderate
+  plotxy 3 total-mild     ;; X=3 for Mild
+end
+
 ;; Define outputs
 to update-stats-and-flow
   ;; Update stats for pedestrians
@@ -386,7 +445,7 @@ to update-stats-and-flow
     (ycor > 0 and ycor - speedy * dt <= 0) or
     (ycor < 0 and ycor - speedy * dt >= 0)
   ] [
-    set flow-cum-ped flow-cum-ped + 1
+    set flow-cum flow-cum + 1
   ]
 
   ;; Update cumulative flow for bikes crossing the center
@@ -396,7 +455,7 @@ to update-stats-and-flow
     (ycor > 0 and ycor - speedy * dt <= 0) or
     (ycor < 0 and ycor - speedy * dt >= 0)
   ] [
-    set flow-cum-bike flow-cum-bike + 1
+    set flow-cum flow-cum + 1
   ]
   plot!
 end
@@ -409,38 +468,44 @@ to plot!
   if ticks > 0 [
     ;; Plot pedestrian speeds
     set-current-plot "Pedestrian Speed"
-    set-current-plot-pen "MeanP"
+    set-current-plot-pen "Mean"
     plot mean-speed-ped
-    set-current-plot-pen "StddevP"
+    set-current-plot-pen "Stddev"
     plot stddev-speed-ped
 
     ;; Plot bike speeds
-    set-current-plot "Bike Speed"
-    set-current-plot-pen "MeanB"
-    plot mean-speed-bike
-    set-current-plot-pen "StddevB"
-    plot stddev-speed-bike
+   set-current-plot "Bike Speed"
+   set-current-plot-pen "Mean"
+   Plot mean-speed-bike
+   set-current-plot-pen "Stddev"
+   Plot stddev-speed-bike
 
-    ;; Plot pedestrian flow
-    set-current-plot "Pedestrian Flow"
-    set-current-plot-pen "Flow"
-    plot flow-cum-ped / ticks
 
-    ;; Plot bike flow
-    set-current-plot "Bike Flow"
-    set-current-plot-pen "Flow"
-    plot flow-cum-bike / ticks
+
+    ;; Plot spatial and temporal flow
+    set-current-plot "Mean Flow"
+    set-plot-y-range 0 2
+    set-current-plot-pen "Spatial"
+    set num-agents Nb-peds + Nb-bikes
+    set mean-speed mean-speed-bike + mean-speed-ped
+    plotxy time ((mean-speed / ticks) * num-agents / world-width / world-height)
+    set-current-plot-pen "Temporal"
+    plotxy time (flow-cum / ticks / world-height)
+
+    ;; Plot fundamental flow
+    set-current-plot "Fundamental Diagram"
+    plotxy (num-agents / world-width / world-height) (num-agents / world-width / world-height * mean-speed / ticks)
   ]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
-542
-11
-1160
-230
+825
+174
+3010
+932
 -1
 -1
-10.0
+35.7
 1
 10
 1
@@ -469,7 +534,7 @@ Nb-peds
 Nb-peds
 0
 7000
-4182.0
+7000.0
 1
 1
 NIL
@@ -510,11 +575,11 @@ NIL
 1
 
 PLOT
-204
-324
-506
-444
-Pedestrian Flow
+207
+494
+509
+614
+Mean Flow
 Time
 Flow
 0.0
@@ -525,7 +590,8 @@ true
 true
 "" ""
 PENS
-"Flow" 1.0 0 -11053225 true "" ""
+"Spatial" 1.0 0 -11053225 true "" ""
+"Temporal" 1.0 0 -7500403 true "" ""
 
 PLOT
 204
@@ -543,8 +609,8 @@ true
 true
 "" ""
 PENS
-"MeanP" 1.0 0 -11053225 true "" ""
-"StddevP" 1.0 0 -11881837 true "" ""
+"Mean" 1.0 0 -11053225 true "" ""
+"Stddev" 1.0 0 -11881837 true "" ""
 
 SLIDER
 105
@@ -573,10 +639,10 @@ mean [sqrt(speedx ^ 2 + speedy ^ 2)] of peds with [state > -1]
 11
 
 PLOT
-203
-196
-506
-316
+206
+366
+509
+486
 Fundamental diagram
 Density
 Flow
@@ -585,25 +651,7 @@ Flow
 0.0
 0.0
 true
-false
-"" ""
-PENS
-"default" 1.0 0 -11053225 true "" ""
-
-PLOT
-5
-350
-165
-470
-Speed stddev
-Density
-Stddev
-0.0
-0.0
-0.0
-0.7
 true
-false
 "" ""
 PENS
 "default" 1.0 0 -11053225 true "" ""
@@ -677,7 +725,7 @@ Nb-Bikes
 Nb-Bikes
 0
 7000
-3364.0
+7000.0
 1
 1
 NIL
@@ -867,41 +915,41 @@ num-bikers
 11
 
 PLOT
-777
-279
-977
-429
+212
+204
+506
+354
 Bike Speed
 Time
 Speed
 0.0
-10.0
 0.0
-10.0
-false
-false
+0.0
+0.0
+true
+true
 "" ""
 PENS
-"MeanB" 1.0 0 -16777216 true "" ""
-"STddevB" 1.0 0 -7500403 true "" ""
+"Mean" 1.0 0 -7500403 true "" ""
+"Stddev" 1.0 0 -2674135 true "" ""
 
 PLOT
-573
-400
-773
-550
-Bike Flow
+206
+624
+406
+774
+Conflict Histogram
 NIL
 NIL
 0.0
-10.0
+4.0
 0.0
-10.0
+0.0
 true
 false
-"" ""
+"" "update-histogram"
 PENS
-"Flow" 1.0 0 -16777216 true "" ""
+"Conflicts" 1.0 1 -16777216 true "" ""
 
 @#$#@#$#@
 ## WHAT IS IT?
