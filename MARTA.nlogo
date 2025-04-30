@@ -134,6 +134,7 @@ to spawn-agents
   ;; Calculate the number of pedestrians and bikes to emit per tick
   let peds-per-tick Nb-peds / 3600
   let bikes-per-tick Nb-bikes / 3600
+  let ferrygoers 100
 
   ;; Add randomness to the rounding
   let peds-to-emit ifelse-value (random-float 1 < peds-per-tick - floor peds-per-tick) [floor peds-per-tick + 1] [floor peds-per-tick]
@@ -148,6 +149,12 @@ to spawn-agents
   repeat bikes-to-emit [
     c-bik
   ]
+
+  ;; Emit ferry goers
+  repeat ferrygoers [
+  timed-spawn-agents
+  ]
+
 end
 
 
@@ -173,8 +180,8 @@ to assign-destinations
       if origin = "south" [
         if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "south" ]]
         if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "east" ]]
-        if random-value >= 0.1 and random-value < 1 [ set my-destination one-of patches with [destination-type = "west" ]]
-        if random-value >= 0 [ set my-destination one-of patches with [destination-type = "north" ]]
+        if random-value >= 0.1 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "west" ]]
+        if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "north" ]]
       ]
       if origin = "north" [
         if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "north" ]]
@@ -236,41 +243,36 @@ to assign-destinations
   ]
 end
 
+
 ;Ferry
 to timed-spawn-agents
-  ;; Check if it's time to spawn agents (every 5 ticks)
-  if ticks mod 5 = 0 [
-
-    ;; Spawn x pedestrians and bikes from the north
-    if any? patches with [destination-type = "north"] [
-      repeat 100 [
+    if ticks mod 5 = 0 [
       create-peds 1 [
-        move-to one-of patches with [destination-type = "north"]
         set num-pedestrians num-pedestrians + 1
         set state 1
-        set origin "N"
+        set origin "north"
         set shape "circle"
         set color magenta
         set size 0.3
+        move-to one-of patches with [destination-type = "north"]
         assign-destinations
         assign-pedspeed
       ]
-      ]
-        repeat 100 [
+  ]
+
       create-bikes 1 [
-        move-to one-of patches with [destination-type = "north"]
         set num-bikers num-bikers + 1
         set state 1
-        set origin "N"
+        set origin "north"
         set shape "circle"
         set color magenta
         set size 0.42
+        move-to one-of patches with [destination-type = "north"]
         assign-destinations
         assign-bikespeed
-      ]
-    ]
+
   ]
-    ]
+
 end
 
 
@@ -331,8 +333,8 @@ ask peds [
   ]
 ]
  check-conflict
- ;timed-spawn-agents
-  update-stats-and-flow
+ timed-spawn-agents
+ update-stats-and-flow
 end
 
 ;; Part 3: Define the spatial attributes of the model
