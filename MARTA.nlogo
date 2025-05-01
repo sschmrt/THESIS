@@ -134,7 +134,6 @@ to spawn-agents
   ;; Calculate the number of pedestrians and bikes to emit per tick
   let peds-per-tick Nb-peds / 3600
   let bikes-per-tick Nb-bikes / 3600
-  let ferrygoers 100
 
   ;; Add randomness to the rounding
   let peds-to-emit ifelse-value (random-float 1 < peds-per-tick - floor peds-per-tick) [floor peds-per-tick + 1] [floor peds-per-tick]
@@ -148,11 +147,6 @@ to spawn-agents
   ;; Emit bikes
   repeat bikes-to-emit [
     c-bik
-  ]
-
-  ;; Emit ferry goers
-  repeat ferrygoers [
-  timed-spawn-agents
   ]
 
 end
@@ -287,55 +281,134 @@ to move
 end
 
 to go
-spawn-agents
-ask peds [
-  if my-destination != nobody and is-patch? my-destination [
-  face my-destination
-  let effective-speed sqrt ((speedx ^ 2) + (speedy ^ 2))
+  spawn-agents
 
-      ; Use fd with effective speed scaled by dt
+  ask peds [
+    if my-destination != nobody and is-patch? my-destination [
+      face my-destination
+
+      ;; Initialize repulsion force components
+      let repx 0
+      let repy 0
+
+
+      ;; Calculate repulsion force from nearby agents
+  ask other turtles in-radius 1 with [self != myself] [
+  ;; Debugging: Print the ID of the current turtle and the interacting turtle
+  print (word "Current turtle: " myself " interacting with turtle: " self)
+
+  ;; Calculate distance to the current turtle
+  let distance-to-self distance myself
+  ;; Debugging: Print the distance
+  print (word "Distance to turtle " self ": " distance-to-self)
+
+  ;; Calculate the angle to the current turtle
+  let angle-to-self towards myself
+  ;; Debugging: Print the angle
+  print (word "Angle to turtle " self ": " angle-to-self)
+
+  ;; Calculate the difference in heading
+  let heading-difference (angle-to-self - heading)
+  ;; Debugging: Print the heading difference
+  print (word "Heading difference with turtle " self ": " heading-difference)
+
+        ;; Calculate repulsion force
+        let force A * exp((1 - distance-to-self) / D)
+        let fx force * sin(angle-to-self) * (1 - cos(heading-difference))
+        let fy force * cos(angle-to-self) * (1 - sin(heading-difference))
+
+        ;; Update repulsion components
+        set repx repx + fx
+        set repy repy + fy
+      ]
+
+
+      ;; Update speed considering repulsion
+      let effective-speed sqrt ((speedx ^ 2) + (speedy ^ 2)) - sqrt (repx ^ 2 + repy ^ 2)
+
+      ;; Use fd with effective speed scaled by dt
       fd (effective-speed * dt)
 
-    if distance my-destination <  1 [
-      move-to my-destination
-      pen-up
-      set dead-agents dead-agents + 1
-      set state 0
-      set color white
-      die
+      if distance my-destination < 1 [
+        move-to my-destination
+        pen-up
+        set dead-agents dead-agents + 1
+        set state 0
+        set color white
+        die
+      ]
     ]
-  ]
 
-  if my-destination = nobody [
-    print (word "Pedestrian " self " has no valid destination!")
-  ]
-]
+    if my-destination = nobody [
+      print (word "Pedestrian " self " has no valid destination!")
+    ]
+    ]
+
+
   ask bikes [
-  if my-destination != nobody and is-patch? my-destination [
-    face my-destination
-    let effective-speed sqrt ((speedx ^ 2) + (speedy ^ 2))
+    if my-destination != nobody and is-patch? my-destination [
+      face my-destination
 
-      ; Use fd with effective speed scaled by dt
+      ;; Initialize repulsion force components
+      let repx 0
+      let repy 0
+
+      ;; Calculate repulsion force from nearby agents
+ ask other turtles in-radius 1 with [self != myself] [
+  ;; Debugging: Print the ID of the current turtle and the interacting turtle
+  print (word "Current turtle: " myself " interacting with turtle: " self)
+
+  ;; Calculate distance to the current turtle
+  let distance-to-self distance myself
+  ;; Debugging: Print the distance
+  print (word "Distance to turtle " self ": " distance-to-self)
+
+  ;; Calculate the angle to the current turtle
+  let angle-to-self towards myself
+  ;; Debugging: Print the angle
+  print (word "Angle to turtle " self ": " angle-to-self)
+
+  ;; Calculate the difference in heading
+  let heading-difference (angle-to-self - heading)
+  ;; Debugging: Print the heading difference
+  print (word "Heading difference with turtle " self ": " heading-difference)
+
+
+        ;; Calculate repulsion force
+        let force A * exp((1 - distance-to-self) / D)
+        let fx force * sin(angle-to-self) * (1 - cos(heading-difference))
+        let fy force * cos(angle-to-self) * (1 - sin(heading-difference))
+
+        ;; Update repulsion components
+        set repx repx + fx
+        set repy repy + fy
+      ]
+
+      ;; Update speed considering repulsion
+      let effective-speed sqrt ((speedx ^ 2) + (speedy ^ 2)) - sqrt (repx ^ 2 + repy ^ 2)
+
+      ;; Use fd with effective speed scaled by dt
       fd (effective-speed * dt)
 
-    if distance my-destination < 1 [
-      move-to my-destination
-      pen-up
-      set dead-agents dead-agents + 1
-      set state 0
-      set color white
-      die
+      if distance my-destination < 1 [
+        move-to my-destination
+        pen-up
+        set dead-agents dead-agents + 1
+        set state 0
+        set color white
+        die
+      ]
+    ]
+
+    if my-destination = nobody [
+      print (word "Bicycle " self " has no valid destination!")
     ]
   ]
 
-  if my-destination = nobody [
-    print (word "Pedestrian " self " has no valid destination!")
-  ]
-]
- check-conflict
- timed-spawn-agents
- update-stats-and-flow
+  check-conflict
+  update-stats-and-flow
 end
+
 
 ;; Part 3: Define the spatial attributes of the model
 
@@ -536,7 +609,7 @@ Nb-peds
 Nb-peds
 0
 7000
-7000.0
+3455.0
 1
 1
 NIL
@@ -727,7 +800,7 @@ Nb-Bikes
 Nb-Bikes
 0
 7000
-7000.0
+3727.0
 1
 1
 NIL
