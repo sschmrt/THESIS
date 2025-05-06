@@ -30,8 +30,9 @@ to setup
   set total-mild 0
 
   ; Load the GeoJSON dataset
+  gis:load-coordinate-system ("C:/Users/marta/Desktop/THESIS/Layers/Thesis_Simple.prj")
   set dataset gis:load-dataset "C:/Users/marta/Desktop/THESIS/Layers/Thesis_Simple.geojson"
-  set waitingpoint gis:load-dataset "C:/Users/marta/Desktop/THESIS/Layers/Zones.geojson"
+
 
   ; Draw dataset for visualization
   gis:set-drawing-color red
@@ -45,7 +46,6 @@ to setup
   ]
 
   ; Identify waiting patches
-  gis:apply-coverage waitingpoint "WAITING" waiting
 
 
 
@@ -139,6 +139,10 @@ to spawn-agents
   let peds-to-emit ifelse-value (random-float 1 < peds-per-tick - floor peds-per-tick) [floor peds-per-tick + 1] [floor peds-per-tick]
   let bikes-to-emit ifelse-value (random-float 1 < bikes-per-tick - floor bikes-per-tick) [floor bikes-per-tick + 1] [floor bikes-per-tick]
 
+  ;; Calculate number of agents coming from ferry
+  let peds-ferry 5
+  let bikes-ferry 5
+
   ;; Emit pedestrians
   repeat peds-to-emit [
     c-ped
@@ -147,6 +151,25 @@ to spawn-agents
   ;; Emit bikes
   repeat bikes-to-emit [
     c-bik
+  ]
+  ;; Emit ferry pedestrians
+  if ticks mod 5 = 0 [
+  repeat peds-ferry [
+    timed-spawn-peds
+  ]
+   ;; Emit ferry bikers
+  repeat peds-ferry [
+   timed-spawn-bikes
+    ]
+
+  ;; Emit ferry bikers
+  repeat 1 [
+   goer-bike
+  ]
+  ;; Emit ferry bikers
+  repeat 1 [
+  goer-ped
+    ]
   ]
 
 end
@@ -239,8 +262,22 @@ end
 
 
 ;Ferry
-to timed-spawn-agents
-    if ticks mod 5 = 0 [
+
+to timed-spawn-bikes
+   create-bikes 1 [
+        set num-bikers num-bikers + 1
+        set state 1
+        set origin "north"
+        set shape "circle"
+        set color magenta
+        set size 0.42
+        move-to one-of patches with [destination-type = "north"]
+        assign-destinations
+        assign-bikespeed
+  ]
+end
+
+to timed-spawn-peds
       create-peds 1 [
         set num-pedestrians num-pedestrians + 1
         set state 1
@@ -251,23 +288,76 @@ to timed-spawn-agents
         move-to one-of patches with [destination-type = "north"]
         assign-destinations
         assign-pedspeed
-      ]
-  ]
 
-      create-bikes 1 [
-        set num-bikers num-bikers + 1
-        set state 1
-        set origin "north"
-        set shape "circle"
-        set color magenta
-        set size 0.42
-        move-to one-of patches with [destination-type = "north"]
-        assign-destinations
-        assign-bikespeed
+    ]
 
+end
+
+to goer-bike
+   create-bikes 1 [
+    set state 1
+    set shape "circle"
+    set color cyan
+    set size .4
+    set num-pedestrians num-pedestrians + 1
+    set my-destination one-of patches with [destination-type = "north"]
+
+    ;; Assign a direction based on the slider probabilities (total = 1)
+    let direction random-float 1
+    if direction < ped_S [
+      ;; Spawn from south
+      move-to one-of patches with [destination-type = "south"]
+      set origin "south"
+    ]
+    if direction >= ped_S and direction < (ped_S + ped_N + ped_W) [
+      ;; Spawn from west
+      move-to one-of patches with [destination-type = "west"]
+      set origin "west"
+    ]
+    if direction >= (ped_S + ped_N + ped_W) [
+      ;; Spawn from east
+      move-to one-of patches with [destination-type = "east"]
+      set origin "east"
+    ]
+
+    ;; Assign speed and destination
+    assign-bikespeed
   ]
 
 end
+
+to goer-ped
+   create-peds 1 [
+    set state 1
+    set shape "circle"
+    set color cyan
+    set size .4
+    set num-pedestrians num-pedestrians + 1
+    set my-destination one-of patches with [destination-type = "north"]
+
+    ;; Assign a direction based on the slider probabilities (total = 1)
+    let direction random-float 1
+    if direction < ped_S [
+      ;; Spawn from south
+      move-to one-of patches with [destination-type = "south"]
+      set origin "south"
+    ]
+    if direction >= ped_S and direction < (ped_S + ped_N + ped_W) [
+      ;; Spawn from west
+      move-to one-of patches with [destination-type = "west"]
+      set origin "west"
+    ]
+    if direction >= (ped_S + ped_N + ped_W) [
+      ;; Spawn from east
+      move-to one-of patches with [destination-type = "east"]
+      set origin "east"
+    ]
+
+    ;; Assign speed and destination
+    assign-bikespeed
+  ]
+end
+
 
 
 ;; Part 2: Multilayered approach to modelling
@@ -293,24 +383,15 @@ to go
 
 
       ;; Calculate repulsion force from nearby agents
-  ask other turtles in-radius 1 with [self != myself] [
-  ;; Debugging: Print the ID of the current turtle and the interacting turtle
-  print (word "Current turtle: " myself " interacting with turtle: " self)
-
+  ask other turtles in-radius 1 with [distance myself >= 0.5] [
   ;; Calculate distance to the current turtle
   let distance-to-self distance myself
-  ;; Debugging: Print the distance
-  print (word "Distance to turtle " self ": " distance-to-self)
 
   ;; Calculate the angle to the current turtle
   let angle-to-self towards myself
-  ;; Debugging: Print the angle
-  print (word "Angle to turtle " self ": " angle-to-self)
 
   ;; Calculate the difference in heading
   let heading-difference (angle-to-self - heading)
-  ;; Debugging: Print the heading difference
-  print (word "Heading difference with turtle " self ": " heading-difference)
 
         ;; Calculate repulsion force
         let force A * exp((1 - distance-to-self) / D)
@@ -331,7 +412,7 @@ to go
 
       if distance my-destination < 1 [
         move-to my-destination
-        pen-up
+        set pen-mode "erase"
         set dead-agents dead-agents + 1
         set state 0
         set color white
@@ -354,24 +435,16 @@ to go
       let repy 0
 
       ;; Calculate repulsion force from nearby agents
- ask other turtles in-radius 1 with [self != myself] [
-  ;; Debugging: Print the ID of the current turtle and the interacting turtle
-  print (word "Current turtle: " myself " interacting with turtle: " self)
+  ask other turtles in-radius 1 with [distance myself >= 0.5] [
 
   ;; Calculate distance to the current turtle
   let distance-to-self distance myself
-  ;; Debugging: Print the distance
-  print (word "Distance to turtle " self ": " distance-to-self)
 
   ;; Calculate the angle to the current turtle
   let angle-to-self towards myself
-  ;; Debugging: Print the angle
-  print (word "Angle to turtle " self ": " angle-to-self)
 
   ;; Calculate the difference in heading
   let heading-difference (angle-to-self - heading)
-  ;; Debugging: Print the heading difference
-  print (word "Heading difference with turtle " self ": " heading-difference)
 
 
         ;; Calculate repulsion force
@@ -392,7 +465,7 @@ to go
 
       if distance my-destination < 1 [
         move-to my-destination
-        pen-up
+        set pen-mode "erase"
         set dead-agents dead-agents + 1
         set state 0
         set color white
@@ -408,6 +481,7 @@ to go
   check-conflict
   update-stats-and-flow
 end
+
 
 
 ;; Part 3: Define the spatial attributes of the model
@@ -432,7 +506,7 @@ to classify-destination-patches
     foreach gis:feature-list-of dataset [
       [feature] ->
       ;; Get the function value of the polygon
-      let function-value gis:property-value feature "function"
+      let function-value gis:property-value feature "FUNCTION"
 
       ;; Assign function-value to patches that intersect with the feature
       ask patches with [ gis:intersects? self feature ] [
