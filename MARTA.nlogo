@@ -30,8 +30,7 @@ to setup
   set total-mild 0
 
   ; Load the GeoJSON dataset
-  gis:load-coordinate-system ("C:/Users/marta/Desktop/THESIS/Layers/Thesis_Simple.prj")
-  set dataset gis:load-dataset "C:/Users/marta/Desktop/THESIS/Layers/Thesis_Simple.geojson"
+  set dataset gis:load-dataset "C:/Users/marta/Desktop/THESIS/Layers/Ruijterkade!.geojson"
 
 
   ; Draw dataset for visualization
@@ -66,22 +65,22 @@ to c-ped
 
     if direction < ped_S [
       ;; Spawn from south
-      move-to one-of patches with [destination-type = "south"]
+      move-to one-of patches with [destination-type = "south" and is-in-study-area? self]
       set origin "south"
     ]
     if direction >= ped_S and direction < (ped_S + ped_N) [
       ;; Spawn from north
-      move-to one-of patches with [destination-type = "north"]
+      move-to one-of patches with [destination-type = "north" and is-in-study-area? self]
       set origin "north"
     ]
     if direction >= (ped_S + ped_N) and direction < (ped_S + ped_N + ped_W) [
       ;; Spawn from west
-      move-to one-of patches with [destination-type = "west"]
+      move-to one-of patches with [destination-type = "west"and is-in-study-area? self]
       set origin "west"
     ]
     if direction >= (ped_S + ped_N + ped_W) [
       ;; Spawn from east
-      move-to one-of patches with [destination-type = "east"]
+      move-to one-of patches with [destination-type = "east" and is-in-study-area? self]
       set origin "east"
     ]
 
@@ -104,22 +103,22 @@ to c-bik
 
     if direction < bik_S [
       ;; Spawn from south
-      move-to one-of patches with [destination-type = "south"]
+      move-to one-of patches with [destination-type = "south" and is-in-study-area? self]
       set origin "south"
     ]
     if direction >= bik_S and direction < (bik_S + bik_N) [
       ;; Spawn from north
-      move-to one-of patches with [destination-type = "north"]
+      move-to one-of patches with [destination-type = "north"and is-in-study-area? self]
       set origin "north"
     ]
     if direction >= (bik_S + bik_N) and direction < (bik_S + bik_N + bik_W) [
       ;; Spawn from west
-      move-to one-of patches with [destination-type = "west"]
+      move-to one-of patches with [destination-type = "west" and is-in-study-area? self]
       set origin "west"
     ]
     if direction >= (bik_S + bik_N + bik_W) [
       ;; Spawn from east
-      move-to one-of patches with [destination-type = "east"]
+      move-to one-of patches with [destination-type = "east" and is-in-study-area? self]
       set origin "east"
     ]
 
@@ -191,32 +190,31 @@ end
 ;; Rules for destinations
 to assign-destinations
   ask peds [
-    pen-down
     if my-destination != nobody [
       let random-value random-float 1
       if origin = "south" [
-        if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "south" ]]
-        if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "east" ]]
-        if random-value >= 0.1 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "west" ]]
-        if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "north" ]]
+        if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "south"  and is-in-study-area? self]]
+        if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "east"  and is-in-study-area? self]]
+        if random-value >= 0.1 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "west"  and is-in-study-area? self]]
+        if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "north"  and is-in-study-area? self]]
       ]
       if origin = "north" [
-        if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "north" ]]
-        if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "east" ]]
-        if random-value >= 0.25 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "west" ]]
-        if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "south" ]]
+        if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "north"  and is-in-study-area? self]]
+        if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "east"  and is-in-study-area? self]]
+        if random-value >= 0.25 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "west"  and is-in-study-area? self]]
+        if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "south"  and is-in-study-area? self]]
       ]
       if origin = "east" [
-        if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "east" ]]
-        if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "north" ]]
-        if random-value >= 0.25 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "south" ]]
-        if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "west" ]]
+        if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "east"  and is-in-study-area? self]]
+        if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "north"  and is-in-study-area? self]]
+        if random-value >= 0.25 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "south"  and is-in-study-area? self]]
+        if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "west"  and is-in-study-area? self]]
       ]
       if origin = "west" [
-        if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "west" ]]
-        if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "south" ]]
-        if random-value >= 0.25 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "north" ]]
-        if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "east" ]]
+        if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "west"  and is-in-study-area? self]]
+        if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "south"  and is-in-study-area? self]]
+        if random-value >= 0.25 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "north"  and is-in-study-area? self]]
+        if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "east"  and is-in-study-area? self]]
       ]
     ]
       if my-destination = 0 [
@@ -226,32 +224,31 @@ to assign-destinations
 
   ;; Assign destinations for bikes
    ask bikes [
-    pen-down
     if my-destination != nobody [
       let random-value random-float 1
       if origin = "south" [
-        if random-value < 0 [ set my-destination one-of patches with [destination-type = "south" ]]
-        if random-value >= 0 and random-value < 0 [ set my-destination one-of patches with [destination-type = "east" ]]
-        if random-value >= .1 and random-value < 1 [ set my-destination one-of patches with [destination-type = "west" ]]
-        if random-value >= 0 [ set my-destination one-of patches with [destination-type = "north" ]]
+        if random-value < 0 [ set my-destination one-of patches with [destination-type = "south"  and is-in-study-area? self]]
+        if random-value >= 0 and random-value < 0 [ set my-destination one-of patches with [destination-type = "east"  and is-in-study-area? self]]
+        if random-value >= .1 and random-value < 1 [ set my-destination one-of patches with [destination-type = "west"  and is-in-study-area? self]]
+        if random-value >= 0 [ set my-destination one-of patches with [destination-type = "north"  and is-in-study-area? self]]
       ]
       if origin = "north" [
-        if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "north" ]]
-        if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "east" ]]
-        if random-value >= 0.25 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "west" ]]
-        if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "south" ]]
+        if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "north"  and is-in-study-area? self]]
+        if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "east"  and is-in-study-area? self]]
+        if random-value >= 0.25 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "west"  and is-in-study-area? self]]
+        if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "south"  and is-in-study-area? self]]
       ]
       if origin = "east" [
-        if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "east" ]]
-        if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "north" ]]
-        if random-value >= 0.25 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "south" ]]
-        if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "west" ]]
+        if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "east"  and is-in-study-area? self]]
+        if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "north"  and is-in-study-area? self]]
+        if random-value >= 0.25 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "south"  and is-in-study-area? self]]
+        if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "west"  and is-in-study-area? self]]
       ]
       if origin = "west" [
-        if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "west" ]]
-        if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "south" ]]
-        if random-value >= 0.25 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "north" ]]
-        if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "east" ]]
+        if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "west"  and is-in-study-area? self]]
+        if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "south"  and is-in-study-area? self]]
+        if random-value >= 0.25 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "north"  and is-in-study-area? self]]
+        if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "east"  and is-in-study-area? self]]
       ]
     ]
       if my-destination = 0 [
@@ -661,8 +658,8 @@ GRAPHICS-WINDOW
 1
 1
 0
-0
-0
+1
+1
 1
 -30
 30
