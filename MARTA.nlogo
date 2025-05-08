@@ -9,8 +9,8 @@ breed [peds ped]
 breed [bikes bike]
 
 globals [total-severe total-moderate total-mild num-pedestrians num-bikers num-agents dead-agents destination-features destination-tables time mean-speed mean-speed-bike mean-speed-ped stddev-speed-bike stddev-speed-ped flow-cum polygons waitingpoint dataset wgs84-dataset study-area-patches]
-peds-own [speedx speedy state my-destination origin]
-bikes-own [speedx speedy state my-destination origin]
+peds-own [speedx speedy state my-destination origin break-timer]
+bikes-own [speedx speedy state my-destination origin break-timer]
 patches-own [ obstacle? destination-type function-id waiting destination-patch ]
 
 ;; Part 1: Setup the Environment
@@ -432,7 +432,28 @@ to go
     if my-destination = nobody [
       print (word "Pedestrian " self " has no valid destination!")
     ]
+ ;; Check for break if not already on a break
+    if state != 2 [
+      let stop-probability [waiting] of patch-here ;; Get the patch's value
+      if (random-float 1 < stop-probability) [
+        set state 2
     ]
+  ]
+     if state = 2 [
+      ;; Initialize break timer if not already set
+      if break-timer = 0 [
+        set break-timer random 5 + 1 ;; Random value between 1 and 5
+      ]
+      set break-timer break-timer - 1
+      if break-timer <= 0 [
+        set state 1 ;; Resume movement after the break
+      ]
+      ;; Ensure the agent remains stationary
+      set speedx 0
+      set speedy 0
+
+    ]
+  ]
 
 
   ask bikes [
@@ -494,6 +515,28 @@ to go
     if my-destination = nobody [
       print (word "Bicycle " self " has no valid destination!")
     ]
+   ;; Check for break if not already on a break
+    if state != 2 [
+      let stop-probability [waiting] of patch-here ;; Get the patch's value
+      if (random-float 1 < stop-probability) [
+        set state 2
+    ]
+  ]
+     if state = 2 [
+      ;; Initialize break timer if not already set
+      if break-timer = 0 [
+      set break-timer random 5 + 1 ;; Random value between 1 and 5
+      ]
+      set break-timer break-timer - 1
+      if break-timer <= 0 [
+        set state 1 ;; Resume movement after the break
+      ]
+      ;; Ensure the agent remains stationary
+      set speedx 0
+      set speedy 0
+
+
+    ]
   ]
 
   check-conflict
@@ -540,6 +583,7 @@ end
 to waiting-values
   ask patches [
     ; Debugging information
+    set waiting 100
     print self
     foreach gis:feature-list-of dataset [
       [feature] ->
@@ -548,9 +592,9 @@ to waiting-values
 
       ;; Assign function-value to patches that intersect with the feature
       ask patches with [ gis:intersects? self feature ] [
-        if function-value = 10 [ set waiting 0.1 ]
+        if function-value = 10 [ set waiting 1 ]
         if function-value = 20 [ set waiting 0.1 ]
-        if function-value = 30 [ set waiting 0.3 ]
+        if function-value = 30 [ set waiting 0.1 ]
         if function-value = 40 [ set waiting 0.1 ]
         if function-value = 50 [ set waiting 0.1 ]
         if function-value = 60 [ set waiting 0.1 ]
