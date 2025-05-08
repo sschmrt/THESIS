@@ -37,6 +37,7 @@ to setup
   gis:set-drawing-color red
   gis:draw dataset 0.1
   classify-destination-patches
+  waiting-values
 
   ; Identify patches in the study area
   set study-area-patches patches with [is-in-study-area? self]
@@ -531,6 +532,30 @@ to classify-destination-patches
         if function-value = 2 or function-value = 5 [ set destination-type "north" ]
         if function-value = 3 [ set destination-type "west" ]
         if function-value = 4 [ set destination-type "south" ]
+      ]
+    ]
+  ]
+end
+
+to waiting-values
+  ask patches [
+    ; Debugging information
+    print self
+    foreach gis:feature-list-of dataset [
+      [feature] ->
+      ;; Get the function value of the polygon
+      let function-value gis:property-value feature "Function"
+
+      ;; Assign function-value to patches that intersect with the feature
+      ask patches with [ gis:intersects? self feature ] [
+        if function-value = 10 [ set waiting 0.1 ]
+        if function-value = 20 [ set waiting 0.1 ]
+        if function-value = 30 [ set waiting 0.3 ]
+        if function-value = 40 [ set waiting 0.1 ]
+        if function-value = 50 [ set waiting 0.1 ]
+        if function-value = 60 [ set waiting 0.1 ]
+        if function-value = 70 [ set waiting 0.1 ]
+        if function-value = 80 [ set waiting 0.1 ]
       ]
     ]
   ]
