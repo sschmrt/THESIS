@@ -208,7 +208,6 @@ to spawn-agents
     c-bik
   ]
   ;; Emit ferry pedestrians
-  if ticks mod 5 = 0 [
   repeat peds-ferry [
     timed-spawn-peds
   ]
@@ -225,7 +224,7 @@ to spawn-agents
   repeat 1 [
   goer-ped
     ]
-  ]
+
 
 end
 
@@ -372,6 +371,7 @@ end
 to go
   spawn-agents
 
+
   ask peds [
     if my-destination != nobody and is-patch? my-destination [
       face my-destination
@@ -382,7 +382,7 @@ to go
 
 
       ;; Calculate repulsion force from nearby agents
-  ask other turtles in-radius 1 with [distance myself >= 0.5] [
+  ask other turtles in-radius 0.5 with [distance myself >= 0.1] [
   ;; Calculate distance to the current turtle
   let distance-to-self distance myself
 
@@ -405,11 +405,20 @@ to go
 
       ;; Update speed considering repulsion
       let effective-speed sqrt ((speedx ^ 2) + (speedy ^ 2)) - sqrt (repx ^ 2 + repy ^ 2)
+      let next-position patch-ahead (effective-speed * dt)
+       if next-position != nobody [
+        if is-in-study-area? next-position  [
+          fd (effective-speed * dt)
+        ]
+        if not is-in-study-area? next-position  [
+          set heading heading + 180 ; Turn around
+          face my-destination
+          fd (effective-speed * dt)
+        ]
+      ]
 
-      ;; Use fd with effective speed scaled by dt
-      fd (effective-speed * dt)
 
-      if distance my-destination < 1 [
+      if distance my-destination < 5 [
         move-to my-destination
         set pen-mode "erase"
         set dead-agents dead-agents + 1
@@ -457,12 +466,21 @@ to go
       ]
 
       ;; Update speed considering repulsion
-      let effective-speed sqrt ((speedx ^ 2) + (speedy ^ 2)) - sqrt (repx ^ 2 + repy ^ 2)
+       let effective-speed sqrt ((speedx ^ 2) + (speedy ^ 2)) - sqrt (repx ^ 2 + repy ^ 2)
+      let next-position patch-ahead (effective-speed * dt)
+       if next-position != nobody [
+        if is-in-study-area? next-position  [
+          fd (effective-speed * dt)
+        ]
+        if not is-in-study-area? next-position  [
+          set heading heading + 180 ; Turn around
+          face my-destination
+          fd (effective-speed * dt)
+        ]
+      ]
 
-      ;; Use fd with effective speed scaled by dt
-      fd (effective-speed * dt)
 
-      if distance my-destination < 1 [
+      if distance my-destination < 5 [
         move-to my-destination
         set pen-mode "erase"
         set dead-agents dead-agents + 1
@@ -682,7 +700,7 @@ Nb-peds
 Nb-peds
 0
 7000
-3455.0
+2000.0
 1
 1
 NIL
@@ -873,7 +891,7 @@ Nb-Bikes
 Nb-Bikes
 0
 7000
-3727.0
+2091.0
 1
 1
 NIL
