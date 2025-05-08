@@ -65,27 +65,55 @@ to c-ped
 
     if direction < ped_S [
       ;; Spawn from south
-      move-to one-of patches with [destination-type = "south" and is-in-study-area? self]
+      move-to one-of patches with [destination-type = "south"]
       set origin "south"
     ]
     if direction >= ped_S and direction < (ped_S + ped_N) [
       ;; Spawn from north
-      move-to one-of patches with [destination-type = "north" and is-in-study-area? self]
+      move-to one-of patches with [destination-type = "north"]
       set origin "north"
     ]
     if direction >= (ped_S + ped_N) and direction < (ped_S + ped_N + ped_W) [
       ;; Spawn from west
-      move-to one-of patches with [destination-type = "west"and is-in-study-area? self]
+      move-to one-of patches with [destination-type = "west"]
       set origin "west"
     ]
     if direction >= (ped_S + ped_N + ped_W) [
       ;; Spawn from east
-      move-to one-of patches with [destination-type = "east" and is-in-study-area? self]
+      move-to one-of patches with [destination-type = "east"]
       set origin "east"
     ]
 
-    ;; Assign speed and destination
-    assign-destinations
+     let random-value random-float 1
+      if origin = "south" [
+        if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "south" ]]
+        if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "east" ]]
+        if random-value >= 0.1 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "west" ]]
+        if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "north" ]]
+      ]
+      if origin = "north" [
+        if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "north" ]]
+        if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "east" ]]
+        if random-value >= 0.25 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "west" ]]
+        if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "south" ]]
+      ]
+      if origin = "east" [
+        if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "east" ]]
+        if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "north" ]]
+        if random-value >= 0.25 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "south" ]]
+        if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "west" ]]
+      ]
+      if origin = "west" [
+        if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "west" ]]
+        if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "south" ]]
+        if random-value >= 0.25 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "north" ]]
+        if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "east" ]]
+      ]
+
+      if my-destination = 0 [
+     print (word "Pedestrian with origin " origin " has no valid destination!")
+    ]
+
     assign-pedspeed
   ]
 end
@@ -103,27 +131,55 @@ to c-bik
 
     if direction < bik_S [
       ;; Spawn from south
-      move-to one-of patches with [destination-type = "south" and is-in-study-area? self]
+      move-to one-of patches with [destination-type = "south"]
       set origin "south"
     ]
     if direction >= bik_S and direction < (bik_S + bik_N) [
       ;; Spawn from north
-      move-to one-of patches with [destination-type = "north"and is-in-study-area? self]
+      move-to one-of patches with [destination-type = "north"]
       set origin "north"
     ]
     if direction >= (bik_S + bik_N) and direction < (bik_S + bik_N + bik_W) [
       ;; Spawn from west
-      move-to one-of patches with [destination-type = "west" and is-in-study-area? self]
+      move-to one-of patches with [destination-type = "west"]
       set origin "west"
     ]
     if direction >= (bik_S + bik_N + bik_W) [
       ;; Spawn from east
-      move-to one-of patches with [destination-type = "east" and is-in-study-area? self]
+      move-to one-of patches with [destination-type = "east"]
       set origin "east"
     ]
 
     ;; Assign speed and destination
-    assign-destinations
+     let random-value random-float 1
+      if origin = "south" [
+        if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "south" ]]
+        if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "east" ]]
+        if random-value >= 0.1 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "west" ]]
+        if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "north" ]]
+      ]
+      if origin = "north" [
+        if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "north" ]]
+        if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "east" ]]
+        if random-value >= 0.25 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "west" ]]
+        if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "south" ]]
+      ]
+      if origin = "east" [
+        if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "east" ]]
+        if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "north" ]]
+        if random-value >= 0.25 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "south" ]]
+        if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "west" ]]
+      ]
+      if origin = "west" [
+        if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "west" ]]
+        if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "south" ]]
+        if random-value >= 0.25 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "north" ]]
+        if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "east" ]]
+      ]
+
+      if my-destination = 0 [
+     print (word "Bike with origin " origin " has no valid destination!")
+    ]
     assign-bikespeed
   ]
 end
@@ -188,74 +244,6 @@ to assign-bikespeed
 end
 
 ;; Rules for destinations
-to assign-destinations
-  ask peds [
-    if my-destination != nobody [
-      let random-value random-float 1
-      if origin = "south" [
-        if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "south"  and is-in-study-area? self]]
-        if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "east"  and is-in-study-area? self]]
-        if random-value >= 0.1 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "west"  and is-in-study-area? self]]
-        if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "north"  and is-in-study-area? self]]
-      ]
-      if origin = "north" [
-        if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "north"  and is-in-study-area? self]]
-        if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "east"  and is-in-study-area? self]]
-        if random-value >= 0.25 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "west"  and is-in-study-area? self]]
-        if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "south"  and is-in-study-area? self]]
-      ]
-      if origin = "east" [
-        if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "east"  and is-in-study-area? self]]
-        if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "north"  and is-in-study-area? self]]
-        if random-value >= 0.25 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "south"  and is-in-study-area? self]]
-        if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "west"  and is-in-study-area? self]]
-      ]
-      if origin = "west" [
-        if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "west"  and is-in-study-area? self]]
-        if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "south"  and is-in-study-area? self]]
-        if random-value >= 0.25 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "north"  and is-in-study-area? self]]
-        if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "east"  and is-in-study-area? self]]
-      ]
-    ]
-      if my-destination = 0 [
-      print (word "Pedestrian with origin " origin " has no valid destination!")
-    ]
-  ]
-
-  ;; Assign destinations for bikes
-   ask bikes [
-    if my-destination != nobody [
-      let random-value random-float 1
-      if origin = "south" [
-        if random-value < 0 [ set my-destination one-of patches with [destination-type = "south"  and is-in-study-area? self]]
-        if random-value >= 0 and random-value < 0 [ set my-destination one-of patches with [destination-type = "east"  and is-in-study-area? self]]
-        if random-value >= .1 and random-value < 1 [ set my-destination one-of patches with [destination-type = "west"  and is-in-study-area? self]]
-        if random-value >= 0 [ set my-destination one-of patches with [destination-type = "north"  and is-in-study-area? self]]
-      ]
-      if origin = "north" [
-        if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "north"  and is-in-study-area? self]]
-        if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "east"  and is-in-study-area? self]]
-        if random-value >= 0.25 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "west"  and is-in-study-area? self]]
-        if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "south"  and is-in-study-area? self]]
-      ]
-      if origin = "east" [
-        if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "east"  and is-in-study-area? self]]
-        if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "north"  and is-in-study-area? self]]
-        if random-value >= 0.25 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "south"  and is-in-study-area? self]]
-        if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "west"  and is-in-study-area? self]]
-      ]
-      if origin = "west" [
-        if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "west"  and is-in-study-area? self]]
-        if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "south"  and is-in-study-area? self]]
-        if random-value >= 0.25 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "north"  and is-in-study-area? self]]
-        if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "east"  and is-in-study-area? self]]
-      ]
-    ]
-      if my-destination = 0 [
-      print (word "Bike with origin " origin " has no valid destination!")
-    ]
-  ]
-end
 
 
 ;Ferry
@@ -269,7 +257,14 @@ to timed-spawn-bikes
         set color magenta
         set size 0.42
         move-to one-of patches with [destination-type = "north"]
-        assign-destinations
+        let random-value random-float 1
+        if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "north" ]]
+        if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "east" ]]
+        if random-value >= 0.25 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "west" ]]
+        if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "south" ]]
+      if my-destination = 0 [
+     print (word "Pedestrian with origin " origin " has no valid destination!")
+    ]
         assign-bikespeed
   ]
 end
@@ -283,7 +278,14 @@ to timed-spawn-peds
         set color magenta
         set size 0.3
         move-to one-of patches with [destination-type = "north"]
-        assign-destinations
+        let random-value random-float 1
+        if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "north" ]]
+        if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "east" ]]
+        if random-value >= 0.25 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "west" ]]
+        if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "south" ]]
+      if my-destination = 0 [
+     print (word "Pedestrian with origin " origin " has no valid destination!")
+    ]
         assign-pedspeed
 
     ]
@@ -503,12 +505,12 @@ to classify-destination-patches
     foreach gis:feature-list-of dataset [
       [feature] ->
       ;; Get the function value of the polygon
-      let function-value gis:property-value feature "FUNCTION"
+      let function-value gis:property-value feature "Function"
 
       ;; Assign function-value to patches that intersect with the feature
       ask patches with [ gis:intersects? self feature ] [
         if function-value = 1 [ set destination-type "east" ]
-        if function-value = 2 [ set destination-type "north" ]
+        if function-value = 2 or function-value = 5 [ set destination-type "north" ]
         if function-value = 3 [ set destination-type "west" ]
         if function-value = 4 [ set destination-type "south" ]
       ]
@@ -658,8 +660,8 @@ GRAPHICS-WINDOW
 1
 1
 0
-1
-1
+0
+0
 1
 -30
 30
