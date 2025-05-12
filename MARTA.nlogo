@@ -60,7 +60,7 @@ to c-ped
     set state 1
     set shape "circle"
     set color cyan
-    set size .2
+    set size 0.1
     set num-pedestrians num-pedestrians + 1
 
     ;; Assign a direction based on the slider probabilities (total = 1)
@@ -126,7 +126,7 @@ to c-bik
     set state 1
     set shape "circle"
     set color blue
-    set size .4
+    set size .1
     set num-bikers num-bikers + 1
 
     ;; Assign a direction based on the slider probabilities (total = 1)
@@ -207,6 +207,23 @@ to spawn-agents
     c-bik
   ]
 
+  ;; Ferry goers and comers
+  if ticks mod ferry = 0 [
+    repeat bike-goer [
+      goer-bike
+    ]
+    repeat bike-comer [
+      timed-spawn-bikes
+    ]
+    repeat ped-goer [
+      goer-ped
+    ]
+    repeat ped-comer [
+      timed-spawn-peds
+    ]
+    ]
+
+
 end
 
 
@@ -235,7 +252,7 @@ to timed-spawn-bikes
         set origin "north"
         set shape "circle"
         set color magenta
-        set size 0.3
+        set size 0.1
         move-to one-of patches with [destination-type = "north"]
         let random-value random-float 1
         if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "north" ]]
@@ -243,7 +260,7 @@ to timed-spawn-bikes
         if random-value >= 0.25 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "west" ]]
         if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "south" ]]
       if my-destination = 0 [
-     print (word "Pedestrian with origin " origin " has no valid destination!")
+     print (word "Bike with origin " origin " has no valid destination!")
     ]
         assign-bikespeed
   ]
@@ -256,7 +273,8 @@ to timed-spawn-peds
         set origin "north"
         set shape "circle"
         set color magenta
-        set size 0.2
+        set size 0.1
+        assign-pedspeed
         move-to one-of patches with [destination-type = "north"]
         let random-value random-float 1
         if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "north" ]]
@@ -266,9 +284,7 @@ to timed-spawn-peds
       if my-destination = 0 [
      print (word "Pedestrian with origin " origin " has no valid destination!")
     ]
-        assign-pedspeed
-
-    ]
+      ]
 
 end
 
@@ -276,10 +292,11 @@ to goer-bike
    create-bikes 1 [
     set state 1
     set shape "circle"
-    set color cyan
-    set size .3
-    set num-pedestrians num-pedestrians + 1
+    set color black
+    set size .1
+    set num-bikers num-bikers + 1
     set my-destination one-of patches with [destination-type = "north"]
+    assign-bikespeed
 
     ;; Assign a direction based on the slider probabilities (total = 1)
     let direction random-float 1
@@ -298,9 +315,6 @@ to goer-bike
       move-to one-of patches with [destination-type = "east"]
       set origin "east"
     ]
-
-    ;; Assign speed and destination
-    assign-bikespeed
   ]
 
 end
@@ -309,8 +323,8 @@ to goer-ped
    create-peds 1 [
     set state 1
     set shape "circle"
-    set color cyan
-    set size .2
+    set color black
+    set size .1
     set num-pedestrians num-pedestrians + 1
     set my-destination one-of patches with [destination-type = "north"]
 
@@ -364,7 +378,7 @@ to go
 
 
       ;; Calculate repulsion force from nearby agents
-  ask other turtles in-radius 0.2 with [distance myself >= 0.1] [
+  ask other turtles in-radius 0.1 with [distance myself >= 0.05] [
   ;; Calculate distance to the current turtle
   let distance-to-self distance myself
 
@@ -441,7 +455,7 @@ to go
       let repy 0
 
       ;; Calculate repulsion force from nearby agents
-  ask other turtles in-radius 0.2 with [distance myself >= 0.1] [
+  ask other turtles in-radius 0.1 with [distance myself >= 0.05] [
 
   ;; Calculate distance to the current turtle
   let distance-to-self distance myself
@@ -784,7 +798,7 @@ Nb-peds
 Nb-peds
 0
 7000
-2000.0
+1364.0
 1
 1
 NIL
@@ -890,9 +904,9 @@ mean [sqrt(speedx ^ 2 + speedy ^ 2)] of peds with [state > -1]
 
 PLOT
 206
-366
+379
 509
-486
+499
 Fundamental diagram
 Density
 Flow
@@ -915,7 +929,7 @@ dt
 dt
 0
 1
-1.0
+0.98
 .01
 1
 NIL
@@ -945,7 +959,7 @@ Tr
 Tr
 .1
 2
-0.5
+0.6
 .1
 1
 NIL
@@ -975,7 +989,7 @@ Nb-Bikes
 Nb-Bikes
 0
 7000
-2091.0
+2458.0
 1
 1
 NIL
@@ -990,7 +1004,7 @@ ped_S
 ped_S
 0
 1
-0.3
+0.2
 .1
 1
 NIL
@@ -1035,7 +1049,7 @@ ped_W
 ped_W
 0
 1
-0.1
+0.2
 .1
 1
 NIL
@@ -1050,7 +1064,7 @@ bik_N
 bik_N
 0
 1
-0.1
+0.3
 0.1
 1
 NIL
@@ -1065,7 +1079,7 @@ bik_S
 bik_S
 0
 1
-0.3
+0.2
 .1
 1
 NIL
@@ -1095,7 +1109,7 @@ bik_W
 bik_W
 0
 1
-0.3
+0.0
 .1
 1
 NIL
@@ -1200,6 +1214,81 @@ false
 "" "update-histogram"
 PENS
 "Conflicts" 1.0 1 -16777216 true "" ""
+
+SLIDER
+1
+349
+93
+382
+Ferry
+Ferry
+0
+800
+240.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+3
+386
+95
+419
+bike-goer
+bike-goer
+0
+500
+78.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+106
+384
+198
+417
+bike-comer
+bike-comer
+0
+100
+71.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+23
+437
+195
+470
+ped-goer
+ped-goer
+0
+320
+84.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+0
+498
+172
+531
+ped-comer
+ped-comer
+0
+320
+61.0
+1
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
