@@ -9,9 +9,9 @@ breed [peds ped]
 breed [bikes bike]
 
 globals [total-severe total-moderate total-mild num-pedestrians num-bikers num-agents dead-agents destination-features destination-tables time mean-speed mean-speed-bike mean-speed-ped stddev-speed-bike stddev-speed-ped flow-cum polygons waitingpoint dataset wgs84-dataset study-area-patches]
-peds-own [speedx speedy state my-destination origin break-timer]
-bikes-own [speedx speedy state my-destination origin break-timer]
-patches-own [ obstacle? destination-type function-id waiting destination-patch ]
+peds-own [speedx speedy state my-destination origin break-timer waited]
+bikes-own [speedx speedy state my-destination origin break-timer waited]
+patches-own [obstacle? study-patch? destination-type function-id waiting destination-patch ]
 
 ;; Part 1: Setup the Environment
 
@@ -38,13 +38,15 @@ to setup
   gis:draw dataset 0.1
   classify-destination-patches
   waiting-values
+  define-obstacles
 
   ; Identify patches in the study area
-  set study-area-patches patches with [is-in-study-area? self]
-  ask study-area-patches [
+  ask patches [
+    set study-patch? is-in-study-area? self
+  ]
+  ask patches with [study-patch?] [
     set pcolor green
   ]
-
   ; Identify waiting patches
 
 
@@ -58,7 +60,7 @@ to c-ped
     set state 1
     set shape "circle"
     set color cyan
-    set size .4
+    set size .2
     set num-pedestrians num-pedestrians + 1
 
     ;; Assign a direction based on the slider probabilities (total = 1)
@@ -124,7 +126,7 @@ to c-bik
     set state 1
     set shape "circle"
     set color blue
-    set size .5
+    set size .4
     set num-bikers num-bikers + 1
 
     ;; Assign a direction based on the slider probabilities (total = 1)
@@ -195,10 +197,6 @@ to spawn-agents
   let peds-to-emit ifelse-value (random-float 1 < peds-per-tick - floor peds-per-tick) [floor peds-per-tick + 1] [floor peds-per-tick]
   let bikes-to-emit ifelse-value (random-float 1 < bikes-per-tick - floor bikes-per-tick) [floor bikes-per-tick + 1] [floor bikes-per-tick]
 
-  ;; Calculate number of agents coming from ferry
-  let peds-ferry 5
-  let bikes-ferry 5
-
   ;; Emit pedestrians
   repeat peds-to-emit [
     c-ped
@@ -208,24 +206,6 @@ to spawn-agents
   repeat bikes-to-emit [
     c-bik
   ]
-  ;; Emit ferry pedestrians
-  repeat peds-ferry [
-    timed-spawn-peds
-  ]
-   ;; Emit ferry bikers
-  repeat peds-ferry [
-   timed-spawn-bikes
-    ]
-
-  ;; Emit ferry bikers
-  repeat 1 [
-   goer-bike
-  ]
-  ;; Emit ferry bikers
-  repeat 1 [
-  goer-ped
-    ]
-
 
 end
 
@@ -255,7 +235,7 @@ to timed-spawn-bikes
         set origin "north"
         set shape "circle"
         set color magenta
-        set size 0.42
+        set size 0.3
         move-to one-of patches with [destination-type = "north"]
         let random-value random-float 1
         if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "north" ]]
@@ -276,7 +256,7 @@ to timed-spawn-peds
         set origin "north"
         set shape "circle"
         set color magenta
-        set size 0.3
+        set size 0.2
         move-to one-of patches with [destination-type = "north"]
         let random-value random-float 1
         if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "north" ]]
@@ -297,7 +277,7 @@ to goer-bike
     set state 1
     set shape "circle"
     set color cyan
-    set size .4
+    set size .3
     set num-pedestrians num-pedestrians + 1
     set my-destination one-of patches with [destination-type = "north"]
 
@@ -330,7 +310,7 @@ to goer-ped
     set state 1
     set shape "circle"
     set color cyan
-    set size .4
+    set size .2
     set num-pedestrians num-pedestrians + 1
     set my-destination one-of patches with [destination-type = "north"]
 
@@ -366,6 +346,7 @@ end
 to move
   tick
   go
+  enforce-bounds
   if ticks = 3600 [ stop ]
 end
 
@@ -383,7 +364,7 @@ to go
 
 
       ;; Calculate repulsion force from nearby agents
-  ask other turtles in-radius 0.5 with [distance myself >= 0.1] [
+  ask other turtles in-radius 0.2 with [distance myself >= 0.1] [
   ;; Calculate distance to the current turtle
   let distance-to-self distance myself
 
@@ -408,12 +389,7 @@ to go
       let effective-speed sqrt ((speedx ^ 2) + (speedy ^ 2)) - sqrt (repx ^ 2 + repy ^ 2)
       let next-position patch-ahead (effective-speed * dt)
        if next-position != nobody [
-        if is-in-study-area? next-position  [
-          fd (effective-speed * dt)
-        ]
-        if not is-in-study-area? next-position  [
-          set heading heading + 180 ; Turn around
-          face my-destination
+        if [study-patch?] of next-position  [
           fd (effective-speed * dt)
         ]
       ]
@@ -433,24 +409,24 @@ to go
       print (word "Pedestrian " self " has no valid destination!")
     ]
  ;; Check for break if not already on a break
-    if state != 2 [
+    if state != 2 and waited != 1 [
       let stop-probability [waiting] of patch-here ;; Get the patch's value
       if (random-float 1 < stop-probability) [
         set state 2
     ]
   ]
      if state = 2 [
-      ;; Initialize break timer if not already set
+      set speedx 0
+      set speedy 0
+      set waited 1
       if break-timer = 0 [
-        set break-timer random 5 + 1 ;; Random value between 1 and 5
+        set break-timer random 2 + 1 ;;
       ]
       set break-timer break-timer - 1
       if break-timer <= 0 [
-        set state 1 ;; Resume movement after the break
+      set state 1
+      assign-pedspeed
       ]
-      ;; Ensure the agent remains stationary
-      set speedx 0
-      set speedy 0
 
     ]
   ]
@@ -465,7 +441,7 @@ to go
       let repy 0
 
       ;; Calculate repulsion force from nearby agents
-  ask other turtles in-radius 1 with [distance myself >= 0.5] [
+  ask other turtles in-radius 0.2 with [distance myself >= 0.1] [
 
   ;; Calculate distance to the current turtle
   let distance-to-self distance myself
@@ -516,24 +492,24 @@ to go
       print (word "Bicycle " self " has no valid destination!")
     ]
    ;; Check for break if not already on a break
-    if state != 2 [
+    if state != 2 and waited != 1 [
       let stop-probability [waiting] of patch-here ;; Get the patch's value
       if (random-float 1 < stop-probability) [
         set state 2
     ]
   ]
      if state = 2 [
-      ;; Initialize break timer if not already set
+      set speedx 0
+      set speedy 0
+      set waited 1
       if break-timer = 0 [
-      set break-timer random 5 + 1 ;; Random value between 1 and 5
+      set break-timer random 2 + 1 ;; Random value between 1 and 5
       ]
       set break-timer break-timer - 1
       if break-timer <= 0 [
-        set state 1 ;; Resume movement after the break
+      set state 1
+      assign-bikespeed
       ]
-      ;; Ensure the agent remains stationary
-      set speedx 0
-      set speedy 0
 
 
     ]
@@ -541,6 +517,16 @@ to go
 
   check-conflict
   update-stats-and-flow
+end
+
+to enforce-bounds
+  ask turtles [
+    if not [study-patch?] of patch-here [
+      ;; If the agent is outside the study area, move it back to the nearest study-patch
+      let nearest-study-patch min-one-of patches with [study-patch?] [distance myself]
+      move-to nearest-study-patch
+    ]
+  ]
 end
 
 
@@ -583,7 +569,7 @@ end
 to waiting-values
   ask patches [
     ; Debugging information
-    set waiting 100
+    set waiting 0
     print self
     foreach gis:feature-list-of dataset [
       [feature] ->
@@ -592,16 +578,45 @@ to waiting-values
 
       ;; Assign function-value to patches that intersect with the feature
       ask patches with [ gis:intersects? self feature ] [
-        if function-value = 10 [ set waiting 1 ]
+        if function-value = 10 [ set waiting 0 ]
         if function-value = 20 [ set waiting 0.1 ]
-        if function-value = 30 [ set waiting 0.1 ]
-        if function-value = 40 [ set waiting 0.1 ]
-        if function-value = 50 [ set waiting 0.1 ]
-        if function-value = 60 [ set waiting 0.1 ]
-        if function-value = 70 [ set waiting 0.1 ]
-        if function-value = 80 [ set waiting 0.1 ]
+        if function-value = 30 [ set waiting 0 ]
+        if function-value = 40 [ set waiting 0]
+        if function-value = 50 [ set waiting 0]
+        if function-value = 60 [ set waiting 0]
+        if function-value = 70 [ set waiting 0]
+        if function-value = 80 [ set waiting 0]
       ]
     ]
+  ]
+end
+
+to define-obstacles
+  ask patches [
+    set obstacle? false
+    foreach gis:feature-list-of dataset [
+      [feature] ->
+      ;; Get the function value of the polygon
+      let function-value gis:property-value feature "Function"
+
+      ;; Assign function-value to patches that intersect with the feature
+      ask patches with [gis:intersects? self feature] [
+        if function-value = 666 [
+          set obstacle? true
+          set pcolor pink  ;; Mark obstacles visually
+        ]
+      ]
+    ]
+  ]
+
+  ; Mark agents with state = 0 as obstacles
+  ask peds with [state = 2] [
+    set obstacle? true
+    set color pink
+  ]
+  ask bikes with [state = 2] [
+    set obstacle? true
+    set color pink
   ]
 end
 
@@ -620,13 +635,13 @@ to check-conflict
       let distancetoother distance myself  ;; Calculate distance between agents
 
       ;; Categorize conflict severity and update step counters
-      if distancetoother <= 1.5 [
+      if distancetoother <= .2 [
         set step-severe step-severe + 1
       ]
-      if distancetoother > 1.5 and distancetoother <= 2.5 [
+      if distancetoother > .2 and distancetoother <= .4 [
         set step-moderate step-moderate + 1
       ]
-      if distancetoother > 2.5 and distancetoother <= 3.5 [
+      if distancetoother > .4 and distancetoother <= 1 [
         set step-mild step-mild + 1
       ]
     ]
@@ -742,7 +757,7 @@ GRAPHICS-WINDOW
 -1
 35.7
 1
-10
+1
 1
 1
 1
