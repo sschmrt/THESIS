@@ -365,10 +365,12 @@ to move
 end
 
 to go
+  ;; Spawn agents in the environment
   spawn-agents
 
-
+  ;; Update behavior for pedestrians
   ask peds [
+    ;; Ensure agent has a valid destination
     if my-destination != nobody and is-patch? my-destination [
       face my-destination
 
@@ -376,39 +378,48 @@ to go
       let repx 0
       let repy 0
 
+      ;; Calculate desired velocity toward the destination
+      let desired-velocity-x V0-ped * cos heading
+      let desired-velocity-y V0-ped * sin heading
 
       ;; Calculate repulsion force from nearby agents
-  ask other turtles in-radius 0.1 with [distance myself >= 0.05] [
-  ;; Calculate distance to the current turtle
-  let distance-to-self distance myself
+      ask other turtles in-radius 0.1 with [distance myself >= 0.05] [
+        ;; Calculate distance to the current turtle
+        let distance-to-self distance myself
 
-  ;; Calculate the angle to the current turtle
-  let angle-to-self towards myself
-
-  ;; Calculate the difference in heading
-  let heading-difference (angle-to-self - heading)
+        ;; Calculate the angle to the current turtle
+        let angle-to-self towards myself
 
         ;; Calculate repulsion force
         let force A * exp((1 - distance-to-self) / D)
-        let fx force * sin(angle-to-self) * (1 - cos(heading-difference))
-        let fy force * cos(angle-to-self) * (1 - sin(heading-difference))
+        let fx force * sin(angle-to-self)
+        let fy force * cos(angle-to-self)
 
         ;; Update repulsion components
         set repx repx + fx
         set repy repy + fy
       ]
 
+      ;; Gradually adjust current speed to desired velocity using relaxation time (Tr)
+      let adjusted-velocity-x speedx + ((desired-velocity-x - speedx) / Tr) * dt
+      let adjusted-velocity-y speedy + ((desired-velocity-y - speedy) / Tr) * dt
 
-      ;; Update speed considering repulsion
-      let effective-speed sqrt ((speedx ^ 2) + (speedy ^ 2)) - sqrt (repx ^ 2 + repy ^ 2)
+      ;; Combine adjusted velocity and repulsion force
+      let final-velocity-x adjusted-velocity-x - repx
+      let final-velocity-y adjusted-velocity-y - repy
+
+      ;; Calculate effective speed based on combined forces
+      let effective-speed sqrt ((final-velocity-x ^ 2) + (final-velocity-y ^ 2))
       let next-position patch-ahead (effective-speed * dt)
-       if next-position != nobody [
-        if [study-patch?] of next-position  [
+
+      ;; Move forward if the next position is valid and within the study area
+      if next-position != nobody [
+        if [study-patch?] of next-position [
           fd (effective-speed * dt)
         ]
       ]
 
-
+      ;; Check if the agent has reached its destination
       if distance my-destination < 5 [
         move-to my-destination
         set pen-mode "erase"
@@ -419,34 +430,38 @@ to go
       ]
     ]
 
+    ;; Handle agents with no valid destination
     if my-destination = nobody [
       print (word "Pedestrian " self " has no valid destination!")
     ]
- ;; Check for break if not already on a break
+
+    ;; Check if the agent should stop and take a break
     if state != 2 and waited != 1 [
-      let stop-probability [waiting] of patch-here ;; Get the patch's value
+      let stop-probability [waiting] of patch-here ;; Get the patch's waiting value
       if (random-float 1 < stop-probability) [
-        set state 2
+        set state 2 ;; Set the state to "stopped"
+      ]
     ]
-  ]
-     if state = 2 [
+
+    ;; Handle break logic
+    if state = 2 [
       set speedx 0
       set speedy 0
       set waited 1
       if break-timer = 0 [
-        set break-timer random 2 + 1 ;;
+        set break-timer random 2 + 1 ;; Random break duration
       ]
       set break-timer break-timer - 1
       if break-timer <= 0 [
-      set state 1
-      assign-pedspeed
+        set state 1 ;; Resume movement
+        assign-pedspeed
       ]
-
     ]
   ]
 
-
+  ;; Update behavior for bicycles
   ask bikes [
+    ;; Ensure agent has a valid destination
     if my-destination != nobody and is-patch? my-destination [
       face my-destination
 
@@ -454,44 +469,48 @@ to go
       let repx 0
       let repy 0
 
+      ;; Calculate desired velocity toward the destination
+      let desired-velocity-x V0-ped * cos heading
+      let desired-velocity-y V0-ped * sin heading
+
       ;; Calculate repulsion force from nearby agents
-  ask other turtles in-radius 0.1 with [distance myself >= 0.05] [
+      ask other turtles in-radius 0.1 with [distance myself >= 0.05] [
+        ;; Calculate distance to the current turtle
+        let distance-to-self distance myself
 
-  ;; Calculate distance to the current turtle
-  let distance-to-self distance myself
-
-  ;; Calculate the angle to the current turtle
-  let angle-to-self towards myself
-
-  ;; Calculate the difference in heading
-  let heading-difference (angle-to-self - heading)
-
+        ;; Calculate the angle to the current turtle
+        let angle-to-self towards myself
 
         ;; Calculate repulsion force
         let force A * exp((1 - distance-to-self) / D)
-        let fx force * sin(angle-to-self) * (1 - cos(heading-difference))
-        let fy force * cos(angle-to-self) * (1 - sin(heading-difference))
+        let fx force * sin(angle-to-self)
+        let fy force * cos(angle-to-self)
 
         ;; Update repulsion components
         set repx repx + fx
         set repy repy + fy
       ]
 
-      ;; Update speed considering repulsion
-       let effective-speed sqrt ((speedx ^ 2) + (speedy ^ 2)) - sqrt (repx ^ 2 + repy ^ 2)
+      ;; Gradually adjust current speed to desired velocity using relaxation time (Tr)
+      let adjusted-velocity-x speedx + ((desired-velocity-x - speedx) / Tr) * dt
+      let adjusted-velocity-y speedy + ((desired-velocity-y - speedy) / Tr) * dt
+
+      ;; Combine adjusted velocity and repulsion force
+      let final-velocity-x adjusted-velocity-x - repx
+      let final-velocity-y adjusted-velocity-y - repy
+
+      ;; Calculate effective speed based on combined forces
+      let effective-speed sqrt ((final-velocity-x ^ 2) + (final-velocity-y ^ 2))
       let next-position patch-ahead (effective-speed * dt)
-       if next-position != nobody [
-        if is-in-study-area? next-position  [
-          fd (effective-speed * dt)
-        ]
-        if not is-in-study-area? next-position  [
-          set heading heading + 180 ; Turn around
-          face my-destination
+
+      ;; Move forward if the next position is valid and within the study area
+      if next-position != nobody [
+        if [study-patch?] of next-position [
           fd (effective-speed * dt)
         ]
       ]
 
-
+      ;; Check if the agent has reached its destination
       if distance my-destination < 5 [
         move-to my-destination
         set pen-mode "erase"
@@ -502,33 +521,36 @@ to go
       ]
     ]
 
+    ;; Handle agents with no valid destination
     if my-destination = nobody [
       print (word "Bicycle " self " has no valid destination!")
     ]
-   ;; Check for break if not already on a break
+
+    ;; Check if the agent should stop and take a break
     if state != 2 and waited != 1 [
-      let stop-probability [waiting] of patch-here ;; Get the patch's value
+      let stop-probability [waiting] of patch-here ;; Get the patch's waiting value
       if (random-float 1 < stop-probability) [
-        set state 2
+        set state 2 ;; Set the state to "stopped"
+      ]
     ]
-  ]
-     if state = 2 [
+
+    ;; Handle break logic
+    if state = 2 [
       set speedx 0
       set speedy 0
       set waited 1
       if break-timer = 0 [
-      set break-timer random 2 + 1 ;; Random value between 1 and 5
+        set break-timer random 2 + 1 ;; Random break duration
       ]
       set break-timer break-timer - 1
       if break-timer <= 0 [
-      set state 1
-      assign-bikespeed
+        set state 1 ;; Resume movement
+        assign-bikespeed
       ]
-
-
     ]
   ]
 
+  ;; Check for conflicts between agents and update statistics
   check-conflict
   update-stats-and-flow
 end
