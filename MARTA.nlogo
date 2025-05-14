@@ -189,14 +189,22 @@ end
 
 
 to spawn-agents
-  ;; Calculate the number of pedestrians and bikes to emit per tick
-  let peds-per-tick Nb-peds / 3600
-  let bikes-per-tick Nb-bikes / 3600
+  let ticks-remaining 3600 - ticks
+  let remaining-peds Nb-peds - num-pedestrians
+  let remaining-bikes Nb-bikes - num-bikers
 
   ;; Add randomness to the rounding
-  let peds-to-emit ifelse-value (random-float 1 < peds-per-tick - floor peds-per-tick) [floor peds-per-tick + 1] [floor peds-per-tick]
-  let bikes-to-emit ifelse-value (random-float 1 < bikes-per-tick - floor bikes-per-tick) [floor bikes-per-tick + 1] [floor bikes-per-tick]
+   let peds-to-emit ifelse-value (ticks-remaining > 0) [
+  ceiling (remaining-peds / ticks-remaining)
+] [
+  remaining-peds
+]
 
+  let bikes-to-emit ifelse-value (ticks-remaining > 0) [
+  ceiling (remaining-bikes / ticks-remaining)
+] [
+  remaining-peds
+]
   ;; Emit pedestrians
   repeat peds-to-emit [
     c-ped
@@ -229,18 +237,16 @@ end
 
 ; Rules for initial speed
 to assign-pedspeed
-  let speed-m-s random-normal 1.4 0.2  ; ~1.4 ± 0.2 m/s (5.0 km/h ± 0.7)
+  let speed-m-s random-normal 1.4 0.2
   set speedx speed-m-s * cos heading
   set speedy speed-m-s * sin heading
 end
 
 to assign-bikespeed
-  let speed-m-s random-normal 4.5 0.5  ; ~4.5 ± 0.5 m/s (16.2 km/h ± 1.8)
-  set speedx speed-m-s * cos heading  ; Directly in m/tick (1 patch = 1m)
+  let speed-m-s random-normal 4.5 0.5
+  set speedx speed-m-s * cos heading
   set speedy speed-m-s * sin heading
 end
-
-;; Rules for destinations
 
 
 ;Ferry
@@ -400,6 +406,25 @@ to go
         set repy repy + fy
       ]
 
+      ;; Calculate repulsion force from nearby obstacles
+      ask patches in-radius 0.1 with [distance myself >= 0.05 and obstacle?] [
+        ;; Calculate distance to the obstacle patch
+        let distance-to-obstacle distance myself
+
+        ;; Calculate the angle to the obstacle patch
+        let angle-to-obstacle towards myself
+
+        ;; Calculate repulsion force from the obstacle
+        let obstacle-force A * exp((1 - distance-to-obstacle) / D)
+        let obstacle-fx obstacle-force * sin(angle-to-obstacle)
+        let obstacle-fy obstacle-force * cos(angle-to-obstacle)
+
+        ;; Update repulsion components with obstacle forces
+        set repx repx + obstacle-fx
+        set repy repy + obstacle-fy
+      ]
+
+
       ;; Gradually adjust current speed to desired velocity using relaxation time (Tr)
       let adjusted-velocity-x speedx + ((desired-velocity-x - speedx) / Tr) * dt
       let adjusted-velocity-y speedy + ((desired-velocity-y - speedy) / Tr) * dt
@@ -490,6 +515,24 @@ to go
         set repx repx + fx
         set repy repy + fy
       ]
+      ;; Obstacled avoidant
+       ask patches in-radius 0.1 with [distance myself >= 0.05 and obstacle?] [
+        ;; Calculate distance to the obstacle patch
+        let distance-to-obstacle distance myself
+
+        ;; Calculate the angle to the obstacle patch
+        let angle-to-obstacle towards myself
+
+        ;; Calculate repulsion force from the obstacle
+        let obstacle-force A * exp((1 - distance-to-obstacle) / D)
+        let obstacle-fx obstacle-force * sin(angle-to-obstacle)
+        let obstacle-fy obstacle-force * cos(angle-to-obstacle)
+
+        ;; Update repulsion components with obstacle forces
+        set repx repx + obstacle-fx
+        set repy repy + obstacle-fy
+      ]
+
 
       ;; Gradually adjust current speed to desired velocity using relaxation time (Tr)
       let adjusted-velocity-x speedx + ((desired-velocity-x - speedx) / Tr) * dt
@@ -575,7 +618,7 @@ to-report is-in-study-area? [study-patch]
   foreach gis:feature-list-of dataset [
     [feature] ->
     let id-value gis:property-value feature "id"
-    if (id-value = 1) and gis:intersects? study-patch feature [
+    if (id-value = 1) and gis:intersects? study-patch feature and [obstacle?] of study-patch = false [
       set in-area? true
     ]
   ]
@@ -827,10 +870,10 @@ NIL
 HORIZONTAL
 
 BUTTON
-388
-15
-443
-49
+1188
+53
+1243
+87
 NIL
 Setup
 NIL
@@ -844,10 +887,10 @@ NIL
 1
 
 BUTTON
-448
-16
-503
-49
+1250
+54
+1305
+87
 NIL
 Move
 T
@@ -907,7 +950,7 @@ V0-bike
 V0-bike
 0
 16
-3.0
+5.0
 1
 1
 NIL
@@ -966,7 +1009,7 @@ A
 A
 0
 5
-4.2
+2.1
 .1
 1
 NIL
@@ -1161,7 +1204,7 @@ V0-ped
 V0-ped
 0
 10
-4.0
+2.0
 1
 1
 NIL
@@ -1306,7 +1349,7 @@ ped-comer
 ped-comer
 0
 320
-61.0
+81.0
 1
 1
 NIL
