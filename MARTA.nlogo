@@ -30,7 +30,7 @@ to setup
   set total-mild 0
 
   ; Load the GeoJSON dataset
-  set dataset gis:load-dataset "C:/Users/marta/Desktop/THESIS/Layers/Ruijterkade!.geojson"
+  set dataset gis:load-dataset "C:/Users/marta/Desktop/THESIS/Layers/Final_Ruijterkade.geojson"
 
 
   ; Draw dataset for visualization
@@ -190,21 +190,20 @@ end
 
 to spawn-agents
   let ticks-remaining 3600 - ticks
-  let remaining-peds Nb-peds - num-pedestrians
-  let remaining-bikes Nb-bikes - num-bikers
+  let remaining-peds Nb-peds - num-pedestrians - (ped-goer * 15) - (ped-comer * 15)
+  let remaining-bikes Nb-bikes - num-bikers - (bike-goer * 15) - (bike-comer * 15)
 
-  ;; Add randomness to the rounding
-   let peds-to-emit ifelse-value (ticks-remaining > 0) [
-  ceiling (remaining-peds / ticks-remaining)
-] [
-  remaining-peds
-]
+  ;; Calculate the base number of agents to emit (floor of division)
+  let peds-to-emit floor (remaining-peds / ticks-remaining)
+  let bikes-to-emit floor (remaining-bikes / ticks-remaining)
 
-  let bikes-to-emit ifelse-value (ticks-remaining > 0) [
-  ceiling (remaining-bikes / ticks-remaining)
-] [
-  remaining-peds
-]
+  ;; Handle fractional part probabilistically
+  if random-float 1 < (remaining-peds / ticks-remaining) - peds-to-emit [
+    set peds-to-emit peds-to-emit + 1
+  ]
+  if random-float 1 < (remaining-bikes / ticks-remaining) - bikes-to-emit [
+    set bikes-to-emit bikes-to-emit + 1
+  ]
   ;; Emit pedestrians
   repeat peds-to-emit [
     c-ped
@@ -1009,7 +1008,7 @@ A
 A
 0
 5
-2.1
+0.5
 .1
 1
 NIL
@@ -1334,7 +1333,7 @@ ped-goer
 ped-goer
 0
 320
-84.0
+245.0
 1
 1
 NIL
