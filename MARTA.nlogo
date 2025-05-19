@@ -8,10 +8,10 @@ extensions [gis table csv]
 breed [peds ped]
 breed [bikes bike]
 
-globals [total-severe total-moderate total-mild num-pedestrians num-bikers num-agents dead-agents destination-features destination-tables time mean-speed mean-speed-bike mean-speed-ped stddev-speed-bike stddev-speed-ped flow-cum polygons waitingpoint dataset wgs84-dataset study-area-patches]
+globals [ non-ferry-peds-spawned non-ferry-bikes-spawned total-severe total-moderate total-mild num-pedestrians num-bikers num-agents dead-agents destination-features destination-tables time mean-speed mean-speed-bike mean-speed-ped stddev-speed-bike stddev-speed-ped flow-cum polygons waitingpoint dataset wgs84-dataset study-area-patches]
 peds-own [speedx speedy state my-destination origin break-timer waited]
 bikes-own [speedx speedy state my-destination origin break-timer waited]
-patches-own [obstacle? study-patch? destination-type function-id waiting destination-patch ]
+patches-own [severe moderate mild flow obstacle? study-patch? destination-type function-id waiting destination-patch ]
 
 ;; Part 1: Setup the Environment
 
@@ -21,21 +21,27 @@ to setup
   clear-all
   reset-ticks
   tick
+
+  ;; Initialize variables
   set dead-agents 0
   set num-pedestrians 0
   set num-bikers 0
-
-   set total-severe 0
+  ask patches [ set flow 0 ]
+  set total-severe 0
   set total-moderate 0
   set total-mild 0
+  ask patches [ set severe 0 ]
+  ask patches [ set moderate 0 ]
+  ask patches [ set mild 0 ]
 
   ; Load the GeoJSON dataset
-  set dataset gis:load-dataset "C:/Users/marta/Desktop/THESIS/Layers/Final_Ruijterkade.geojson"
+  set dataset gis:load-dataset "C:/Users/marta/Desktop/THESIS/Layers/Ruji.geojson"
 
 
   ; Draw dataset for visualization
   gis:set-drawing-color red
   gis:draw dataset 0.1
+
   classify-destination-patches
   waiting-values
   define-obstacles
@@ -47,11 +53,7 @@ to setup
   ask patches with [study-patch?] [
     set pcolor green
   ]
-  ; Identify waiting patches
 
-
-
-  ; Initialize variables
   spawn-agents
 end
 
@@ -62,6 +64,7 @@ to c-ped
     set color cyan
     set size 0.1
     set num-pedestrians num-pedestrians + 1
+    set non-ferry-peds-spawned non-ferry-peds-spawned + 1
 
     ;; Assign a direction based on the slider probabilities (total = 1)
     let direction random-float 1
@@ -128,6 +131,7 @@ to c-bik
     set color blue
     set size .1
     set num-bikers num-bikers + 1
+    set non-ferry-bikes-spawned non-ferry-bikes-spawned + 1
 
     ;; Assign a direction based on the slider probabilities (total = 1)
     let direction random-float 1
@@ -189,9 +193,11 @@ end
 
 
 to spawn-agents
-  let ticks-remaining 3600 - ticks
-  let remaining-peds Nb-peds - num-pedestrians - (ped-goer * 15) - (ped-comer * 15)
-  let remaining-bikes Nb-bikes - num-bikers - (bike-goer * 15) - (bike-comer * 15)
+  if ticks > 1 [
+  let ticks-remaining 3601 - ticks + 1
+
+  let remaining-peds Nb-peds - non-ferry-peds-spawned
+  let remaining-bikes Nb-bikes - non-ferry-bikes-spawned
 
   ;; Calculate the base number of agents to emit (floor of division)
   let peds-to-emit floor (remaining-peds / ticks-remaining)
@@ -229,7 +235,7 @@ to spawn-agents
       timed-spawn-peds
     ]
     ]
-
+  ]
 
 end
 
@@ -592,6 +598,9 @@ to go
     ]
   ]
 
+  ;; Record cumulative flow
+  ask peds with [state = 1] [ ask patch-here [ set flow flow + 1 ] ]
+  ask bikes with [state = 1] [ ask patch-here [ set flow flow + 1 ] ]
   ;; Check for conflicts between agents and update statistics
   check-conflict
   update-stats-and-flow
@@ -611,6 +620,8 @@ end
 
 ;; Part 3: Define the spatial attributes of the model
 
+;; Assign function values
+
 ;; Define the study area
 to-report is-in-study-area? [study-patch]
   let in-area? false
@@ -626,14 +637,11 @@ end
 
 to classify-destination-patches
   ask patches [
-    ; Debugging information
     print self
     foreach gis:feature-list-of dataset [
       [feature] ->
-      ;; Get the function value of the polygon
-      let function-value gis:property-value feature "Function"
+      let function-value read-from-string (gis:property-value feature "Function")
 
-      ;; Assign function-value to patches that intersect with the feature
       ask patches with [ gis:intersects? self feature ] [
         if function-value = 1 [ set destination-type "east" ]
         if function-value = 2 or function-value = 5 [ set destination-type "north" ]
@@ -646,24 +654,21 @@ end
 
 to waiting-values
   ask patches [
-    ; Debugging information
     set waiting 0
     print self
     foreach gis:feature-list-of dataset [
       [feature] ->
-      ;; Get the function value of the polygon
-      let function-value gis:property-value feature "Function"
+      let function-value read-from-string (gis:property-value feature "Function")
 
-      ;; Assign function-value to patches that intersect with the feature
       ask patches with [ gis:intersects? self feature ] [
         if function-value = 10 [ set waiting 0 ]
         if function-value = 20 [ set waiting 0.1 ]
         if function-value = 30 [ set waiting 0 ]
-        if function-value = 40 [ set waiting 0]
-        if function-value = 50 [ set waiting 0]
-        if function-value = 60 [ set waiting 0]
-        if function-value = 70 [ set waiting 0]
-        if function-value = 80 [ set waiting 0]
+        if function-value = 40 [ set waiting 0 ]
+        if function-value = 50 [ set waiting 0 ]
+        if function-value = 60 [ set waiting 0 ]
+        if function-value = 70 [ set waiting 0 ]
+        if function-value = 80 [ set waiting 0 ]
       ]
     ]
   ]
@@ -674,20 +679,18 @@ to define-obstacles
     set obstacle? false
     foreach gis:feature-list-of dataset [
       [feature] ->
-      ;; Get the function value of the polygon
-      let function-value gis:property-value feature "Function"
+      let function-value read-from-string (gis:property-value feature "Function")
 
-      ;; Assign function-value to patches that intersect with the feature
       ask patches with [gis:intersects? self feature] [
         if function-value = 666 [
           set obstacle? true
-          set pcolor pink  ;; Mark obstacles visually
+          set pcolor pink
         ]
       ]
     ]
   ]
 
-  ; Mark agents with state = 0 as obstacles
+  ; Mark agents with state = 2 as obstacles
   ask peds with [state = 2] [
     set obstacle? true
     set color pink
@@ -703,34 +706,41 @@ end
 
 ;; Check conflict in  study area
 to check-conflict
-  ;; Reset conflict counters for this step
+  ;; Reset step counters
   let step-severe 0
   let step-moderate 0
   let step-mild 0
 
   ask turtles [
-    ask other turtles [
-      let distancetoother distance myself  ;; Calculate distance between agents
 
-      ;; Categorize conflict severity and update step counters
-      if distancetoother <= .2 [
-        set step-severe step-severe + 1
-      ]
-      if distancetoother > .2 and distancetoother <= .4 [
-        set step-moderate step-moderate + 1
-      ]
-      if distancetoother > .4 and distancetoother <= 1 [
-        set step-mild step-mild + 1
+    ;; Only continue if on a patch with a function-value
+      ask other turtles [
+        let dis distance myself
+
+        if dis <= 1 [
+          ;; Categorize conflict severity
+          if dis <= 0.2 [
+            set step-severe step-severe + 1
+            ask patch-here [ set severe severe + 1 ]
+          ]
+          if dis > 0.2 and dis <= 0.4 [
+            set step-moderate step-moderate + 1
+            ask patch-here [ set moderate moderate + 1 ]
+          ]
+          if dis > 0.4 and dis <= 1 [
+            set step-mild step-mild + 1
+            ask patch-here [ set mild mild + 1 ]
+          ]
+        ]
       ]
     ]
-  ]
 
-  ;; Add step counters to global totals
+  ;; Accumulate totals
   set total-severe total-severe + step-severe
   set total-moderate total-moderate + step-moderate
   set total-mild total-mild + step-mild
 
-  ;; Update the histogram
+  ;; Update histogram visualization
   update-histogram
 end
 
@@ -862,7 +872,7 @@ Nb-peds
 Nb-peds
 0
 7000
-1364.0
+2000.0
 1
 1
 NIL
@@ -1053,7 +1063,7 @@ Nb-Bikes
 Nb-Bikes
 0
 7000
-2458.0
+3000.0
 1
 1
 NIL
@@ -1173,7 +1183,7 @@ bik_W
 bik_W
 0
 1
-0.0
+0.5
 .1
 1
 NIL
@@ -1203,7 +1213,7 @@ V0-ped
 V0-ped
 0
 10
-2.0
+1.0
 1
 1
 NIL
@@ -1303,7 +1313,7 @@ bike-goer
 bike-goer
 0
 500
-78.0
+50.0
 1
 1
 NIL
@@ -1318,7 +1328,7 @@ bike-comer
 bike-comer
 0
 100
-71.0
+50.0
 1
 1
 NIL
@@ -1333,7 +1343,7 @@ ped-goer
 ped-goer
 0
 320
-245.0
+50.0
 1
 1
 NIL
@@ -1348,7 +1358,7 @@ ped-comer
 ped-comer
 0
 320
-81.0
+50.0
 1
 1
 NIL
