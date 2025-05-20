@@ -95,7 +95,7 @@ to c-ped
       if origin = "south" [
         if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "south" ]]
         if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "east" ]]
-        if random-value >= 0.1 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "west" ]]
+        if random-value >= 0.25 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "west" ]]
         if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "north" ]]
       ]
       if origin = "north" [
@@ -163,7 +163,7 @@ to c-bik
       if origin = "south" [
         if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "south" ]]
         if random-value >= 0.1 and random-value < 0.25 [ set my-destination one-of patches with [destination-type = "east" ]]
-        if random-value >= 0.1 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "west" ]]
+        if random-value >= 0.25 and random-value < 0.55 [ set my-destination one-of patches with [destination-type = "west" ]]
         if random-value >= 0.55 [ set my-destination one-of patches with [destination-type = "north" ]]
       ]
       if origin = "north" [
@@ -359,7 +359,7 @@ to goer-ped
     ]
 
     ;; Assign speed and destination
-    assign-bikespeed
+    assign-pedspeed
   ]
 end
 
@@ -530,8 +530,8 @@ to go
       let repy 0
 
       ;; Calculate desired velocity toward the destination
-      let desired-velocity-x V0-ped * cos heading
-      let desired-velocity-y V0-ped * sin heading
+      let desired-velocity-x V0-bike * cos heading
+      let desired-velocity-y V0-bike * sin heading
 
       ;; Calculate repulsion force from nearby agents
       ask other turtles in-radius 0.1 with [distance myself >= 0.05] [
