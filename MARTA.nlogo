@@ -9,9 +9,9 @@ breed [peds ped]
 breed [bikes bike]
 
 globals [ non-ferry-peds-spawned non-ferry-bikes-spawned total-severe total-moderate total-mild num-pedestrians num-bikers num-agents dead-agents destination-features destination-tables time mean-speed mean-speed-bike mean-speed-ped stddev-speed-bike stddev-speed-ped flow-cum polygons waitingpoint dataset wgs84-dataset study-area-patches]
-peds-own [speedx speedy state my-destination origin break-timer waited]
-bikes-own [speedx speedy state my-destination origin break-timer waited]
-patches-own [severe moderate mild flow obstacle? study-patch? destination-type function-id waiting destination-patch ]
+peds-own [last-x last-y stucktimer speedx speedy state my-destination origin break-timer waited]
+bikes-own [last-x last-y stucktimer speedx speedy state my-destination origin break-timer waited]
+patches-own [break-count severe moderate mild flow obstacle? study-patch? destination-type function-id waiting destination-patch ]
 
 ;; Part 1: Setup the Environment
 
@@ -33,6 +33,7 @@ to setup
   ask patches [ set severe 0 ]
   ask patches [ set moderate 0 ]
   ask patches [ set mild 0 ]
+  ask patches [ set break-count 0 ]
 
   ; Load the GeoJSON dataset
   set dataset gis:load-dataset "C:/Users/marta/Desktop/THESIS/Layers/Ruji.geojson"
@@ -381,6 +382,20 @@ to go
 
   ;; Update behavior for pedestrians
   ask peds [
+    ;; Check if agent is stuck
+     ifelse (abs (xcor - last-x) < 0.01 and abs (ycor - last-y) < 0.01)
+    [ set stucktimer stucktimer + 1 ]
+    [ set stucktimer 0 ]
+  set last-x xcor
+  set last-y ycor
+
+    ;; Unstick it
+      if stucktimer > 60 [
+    right (random 90 - 45)
+    fd 2
+    set stucktimer 0
+  ]
+
     ;; Ensure agent has a valid destination
     if my-destination != nobody and is-patch? my-destination [
       face my-destination
@@ -469,7 +484,8 @@ to go
     if state != 2 and waited != 1 [
       let stop-probability [waiting] of patch-here ;; Get the patch's waiting value
       if (random-float 1 < stop-probability) [
-        set state 2 ;; Set the state to "stopped"
+        set state 2 ;;
+        ask patch-here [ set break-count break-count + 1 ]
       ]
     ]
 
@@ -479,7 +495,7 @@ to go
       set speedy 0
       set waited 1
       if break-timer = 0 [
-        set break-timer random 2 + 1 ;; Random break duration
+        set break-timer random 59 + 1 ;; Random break duration
       ]
       set break-timer break-timer - 1
       if break-timer <= 0 [
@@ -491,6 +507,20 @@ to go
 
   ;; Update behavior for bicycles
   ask bikes [
+    ;; Check if agent is stuck
+     ifelse (abs (xcor - last-x) < 0.01 and abs (ycor - last-y) < 0.01)
+    [ set stucktimer stucktimer + 1 ]
+    [ set stucktimer 0 ]
+  set last-x xcor
+  set last-y ycor
+
+    ;; Unstick it
+      if stucktimer > 60 [
+    right (random 90 - 45)
+    fd 2
+    set stucktimer 0
+  ]
+
     ;; Ensure agent has a valid destination
     if my-destination != nobody and is-patch? my-destination [
       face my-destination
@@ -578,7 +608,8 @@ to go
     if state != 2 and waited != 1 [
       let stop-probability [waiting] of patch-here ;; Get the patch's waiting value
       if (random-float 1 < stop-probability) [
-        set state 2 ;; Set the state to "stopped"
+        set state 2
+        ask patch-here [ set break-count break-count + 1 ]
       ]
     ]
 
@@ -588,7 +619,7 @@ to go
       set speedy 0
       set waited 1
       if break-timer = 0 [
-        set break-timer random 2 + 1 ;; Random break duration
+        set break-timer random 59 + 1 ;; Random break duration
       ]
       set break-timer break-timer - 1
       if break-timer <= 0 [
@@ -871,8 +902,8 @@ SLIDER
 Nb-peds
 Nb-peds
 0
-7000
-2000.0
+1600
+294.0
 1
 1
 NIL
@@ -1003,7 +1034,7 @@ dt
 dt
 0
 1
-0.98
+1.0
 .01
 1
 NIL
@@ -1018,7 +1049,7 @@ A
 A
 0
 5
-0.5
+0.3
 .1
 1
 NIL
@@ -1062,8 +1093,8 @@ SLIDER
 Nb-Bikes
 Nb-Bikes
 0
-7000
-3000.0
+1600
+556.0
 1
 1
 NIL
@@ -1312,8 +1343,8 @@ SLIDER
 bike-goer
 bike-goer
 0
-500
-50.0
+120
+75.0
 1
 1
 NIL
@@ -1327,7 +1358,22 @@ SLIDER
 bike-comer
 bike-comer
 0
-100
+120
+75.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+2
+426
+94
+459
+ped-goer
+ped-goer
+0
+75
 50.0
 1
 1
@@ -1335,29 +1381,14 @@ NIL
 HORIZONTAL
 
 SLIDER
-23
-437
-195
-470
-ped-goer
-ped-goer
-0
-320
-50.0
-1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-0
-498
-172
-531
+2
+477
+94
+510
 ped-comer
 ped-comer
 0
-320
+120
 50.0
 1
 1
