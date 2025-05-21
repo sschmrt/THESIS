@@ -8,7 +8,7 @@ extensions [gis table csv]
 breed [peds ped]
 breed [bikes bike]
 
-globals [ non-ferry-peds-spawned non-ferry-bikes-spawned total-severe total-moderate total-mild num-pedestrians num-bikers num-agents dead-agents destination-features destination-tables time mean-speed mean-speed-bike mean-speed-ped stddev-speed-bike stddev-speed-ped flow-cum polygons waitingpoint dataset wgs84-dataset study-area-patches]
+globals [D dt v0-ped v0-bike Tr-bike Tr-ped non-ferry-peds-spawned non-ferry-bikes-spawned total-severe total-moderate total-mild num-pedestrians num-bikers num-agents dead-agents destination-features destination-tables time mean-speed mean-speed-bike mean-speed-ped stddev-speed-bike stddev-speed-ped flow-cum polygons waitingpoint dataset wgs84-dataset study-area-patches]
 peds-own [last-x last-y stucktimer speedx speedy state my-destination origin break-timer waited]
 bikes-own [last-x last-y stucktimer speedx speedy state my-destination origin break-timer waited]
 patches-own [break-count severe moderate mild flow obstacle? study-patch? destination-type function-id waiting destination-patch ]
@@ -34,6 +34,12 @@ to setup
   ask patches [ set moderate 0 ]
   ask patches [ set mild 0 ]
   ask patches [ set break-count 0 ]
+  set Tr-bike 0.3
+  set Tr-ped 0.5
+  set v0-ped 1.4
+  set v0-bike 4.6
+  set dt 1
+  set D 0.08
 
   ; Load the GeoJSON dataset
   set dataset gis:load-dataset "C:/Users/marta/Desktop/THESIS/Layers/Ruji.geojson"
@@ -63,7 +69,7 @@ to c-ped
     set state 1
     set shape "circle"
     set color cyan
-    set size 0.1
+    set size 0.3
     set num-pedestrians num-pedestrians + 1
     set non-ferry-peds-spawned non-ferry-peds-spawned + 1
 
@@ -130,7 +136,7 @@ to c-bik
     set state 1
     set shape "circle"
     set color blue
-    set size .1
+    set size .6
     set num-bikers num-bikers + 1
     set non-ferry-bikes-spawned non-ferry-bikes-spawned + 1
 
@@ -264,7 +270,7 @@ to timed-spawn-bikes
         set origin "north"
         set shape "circle"
         set color magenta
-        set size 0.1
+        set size 0.6
         move-to one-of patches with [destination-type = "north"]
         let random-value random-float 1
         if random-value < 0.1 [ set my-destination one-of patches with [destination-type = "north" ]]
@@ -285,7 +291,7 @@ to timed-spawn-peds
         set origin "north"
         set shape "circle"
         set color magenta
-        set size 0.1
+        set size 0.3
         assign-pedspeed
         move-to one-of patches with [destination-type = "north"]
         let random-value random-float 1
@@ -305,7 +311,7 @@ to goer-bike
     set state 1
     set shape "circle"
     set color black
-    set size .1
+    set size .6
     set num-bikers num-bikers + 1
     set my-destination one-of patches with [destination-type = "north"]
     assign-bikespeed
@@ -336,7 +342,7 @@ to goer-ped
     set state 1
     set shape "circle"
     set color black
-    set size .1
+    set size .3
     set num-pedestrians num-pedestrians + 1
     set my-destination one-of patches with [destination-type = "north"]
 
@@ -373,7 +379,10 @@ to move
   tick
   go
   enforce-bounds
-  if ticks = 3600 [ stop ]
+  if ticks = 3600 [
+    stop
+    export-patch-data
+    export-global-data ]
 end
 
 to go
@@ -417,7 +426,7 @@ to go
         let angle-to-self towards myself
 
         ;; Calculate repulsion force
-        let force A * exp((1 - distance-to-self) / D)
+        let force A-ped * exp((1 - distance-to-self) / D)
         let fx force * sin(angle-to-self)
         let fy force * cos(angle-to-self)
 
@@ -435,7 +444,7 @@ to go
         let angle-to-obstacle towards myself
 
         ;; Calculate repulsion force from the obstacle
-        let obstacle-force A * exp((1 - distance-to-obstacle) / D)
+        let obstacle-force A-ped * exp((1 - distance-to-obstacle) / D)
         let obstacle-fx obstacle-force * sin(angle-to-obstacle)
         let obstacle-fy obstacle-force * cos(angle-to-obstacle)
 
@@ -446,8 +455,8 @@ to go
 
 
       ;; Gradually adjust current speed to desired velocity using relaxation time (Tr)
-      let adjusted-velocity-x speedx + ((desired-velocity-x - speedx) / Tr) * dt
-      let adjusted-velocity-y speedy + ((desired-velocity-y - speedy) / Tr) * dt
+      let adjusted-velocity-x speedx + ((desired-velocity-x - speedx) / Tr-ped) * dt
+      let adjusted-velocity-y speedy + ((desired-velocity-y - speedy) / Tr-ped) * dt
 
       ;; Combine adjusted velocity and repulsion force
       let final-velocity-x adjusted-velocity-x - repx
@@ -542,7 +551,7 @@ to go
         let angle-to-self towards myself
 
         ;; Calculate repulsion force
-        let force A * exp((1 - distance-to-self) / D)
+        let force A-bik * exp((1 - distance-to-self) / D)
         let fx force * sin(angle-to-self)
         let fy force * cos(angle-to-self)
 
@@ -559,7 +568,7 @@ to go
         let angle-to-obstacle towards myself
 
         ;; Calculate repulsion force from the obstacle
-        let obstacle-force A * exp((1 - distance-to-obstacle) / D)
+        let obstacle-force A-bik * exp((1 - distance-to-obstacle) / D)
         let obstacle-fx obstacle-force * sin(angle-to-obstacle)
         let obstacle-fy obstacle-force * cos(angle-to-obstacle)
 
@@ -570,8 +579,8 @@ to go
 
 
       ;; Gradually adjust current speed to desired velocity using relaxation time (Tr)
-      let adjusted-velocity-x speedx + ((desired-velocity-x - speedx) / Tr) * dt
-      let adjusted-velocity-y speedy + ((desired-velocity-y - speedy) / Tr) * dt
+      let adjusted-velocity-x speedx + ((desired-velocity-x - speedx) / Tr-bike) * dt
+      let adjusted-velocity-y speedy + ((desired-velocity-y - speedy) / Tr-bike) * dt
 
       ;; Combine adjusted velocity and repulsion force
       let final-velocity-x adjusted-velocity-x - repx
@@ -692,14 +701,14 @@ to waiting-values
       let function-value read-from-string (gis:property-value feature "Function")
 
       ask patches with [ gis:intersects? self feature ] [
-        if function-value = 10 [ set waiting 0 ]
-        if function-value = 20 [ set waiting 0.1 ]
-        if function-value = 30 [ set waiting 0 ]
-        if function-value = 40 [ set waiting 0 ]
-        if function-value = 50 [ set waiting 0 ]
-        if function-value = 60 [ set waiting 0 ]
-        if function-value = 70 [ set waiting 0 ]
-        if function-value = 80 [ set waiting 0 ]
+        if function-value = 10 [ set waiting 0.05 ]
+        if function-value = 20 [ set waiting 0.2 ]
+        if function-value = 30 [ set waiting 0.05 ]
+        if function-value = 40 [ set waiting 0.1 ]
+        if function-value = 50 [ set waiting 0.05 ]
+        if function-value = 60 [ set waiting 0.1 ]
+        if function-value = 70 [ set waiting 0.05 ]
+        if function-value = 80 [ set waiting 0.2 ]
       ]
     ]
   ]
@@ -750,15 +759,15 @@ to check-conflict
 
         if dis <= 1 [
           ;; Categorize conflict severity
-          if dis <= 0.2 [
+          if dis <= 0.3 [
             set step-severe step-severe + 1
             ask patch-here [ set severe severe + 1 ]
           ]
-          if dis > 0.2 and dis <= 0.4 [
+          if dis > 0.3 and dis <= 0.6 [
             set step-moderate step-moderate + 1
             ask patch-here [ set moderate moderate + 1 ]
           ]
-          if dis > 0.4 and dis <= 1 [
+          if dis > 0.6 and dis <= 1 [
             set step-mild step-mild + 1
             ask patch-here [ set mild mild + 1 ]
           ]
@@ -785,6 +794,23 @@ to update-histogram
   plotxy 1 total-severe   ;; X=1 for Severe
   plotxy 2 total-moderate ;; X=2 for Moderate
   plotxy 3 total-mild     ;; X=3 for Mild
+end
+
+to export-patch-data
+  file-open (word "Simulation-patch-run" behaviorSpace-run-number ".csv")
+  ask patches [
+    file-print (word pxcor "," pycor "," severe "," moderate "," mild "," flow)
+  ]
+  file-close
+end
+
+to export-global-data
+  file-open (word "Simulation-global-run" behaviorSpace-run-number ".csv")
+  if ticks = 0 [
+    file-print "tick,mean-speed-ped,mean-speed-bike,stddev-speed-ped,stddev-speed-bike"
+  ]
+  file-print (word ticks "," mean-speed-ped "," mean-speed-bike "," stddev-speed-ped "," stddev-speed-bike)
+  file-close
 end
 
 ;; Define outputs
@@ -848,22 +874,6 @@ to plot!
    Plot mean-speed-bike
    set-current-plot-pen "Stddev"
    Plot stddev-speed-bike
-
-
-
-    ;; Plot spatial and temporal flow
-    set-current-plot "Mean Flow"
-    set-plot-y-range 0 2
-    set-current-plot-pen "Spatial"
-    set num-agents Nb-peds + Nb-bikes
-    set mean-speed mean-speed-bike + mean-speed-ped
-    plotxy time ((mean-speed / ticks) * num-agents / world-width / world-height)
-    set-current-plot-pen "Temporal"
-    plotxy time (flow-cum / ticks / world-height)
-
-    ;; Plot fundamental flow
-    set-current-plot "Fundamental Diagram"
-    plotxy (num-agents / world-width / world-height) (num-agents / world-width / world-height * mean-speed / ticks)
   ]
 end
 @#$#@#$#@
@@ -944,29 +954,10 @@ NIL
 1
 
 PLOT
-207
-494
+208
+12
 509
-614
-Mean Flow
-Time
-Flow
-0.0
-0.0
-0.0
-0.0
-true
-true
-"" ""
-PENS
-"Spatial" 1.0 0 -11053225 true "" ""
-"Temporal" 1.0 0 -7500403 true "" ""
-
-PLOT
-204
-70
-505
-190
+132
 Pedestrian Speed
 Time
 Speed
@@ -982,105 +973,16 @@ PENS
 "Stddev" 1.0 0 -11881837 true "" ""
 
 SLIDER
-105
-105
-197
-138
-V0-bike
-V0-bike
-0
-16
-5.0
-1
-1
-NIL
-HORIZONTAL
-
-MONITOR
-167
-10
-237
-55
-Mean speed
-mean [sqrt(speedx ^ 2 + speedy ^ 2)] of peds with [state > -1]
-5
-1
-11
-
-PLOT
-206
-379
-509
-499
-Fundamental diagram
-Density
-Flow
-0.0
-0.0
-0.0
-0.0
-true
-true
-"" ""
-PENS
-"default" 1.0 0 -11053225 true "" ""
-
-SLIDER
-105
-255
-197
-288
-dt
-dt
-0
-1
-1.0
-.01
-1
-NIL
-HORIZONTAL
-
-SLIDER
-105
-177
-197
-210
-A
-A
-0
-5
-0.3
-.1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-105
-141
-197
-174
-Tr
-Tr
-.1
-2
-0.6
-.1
-1
-NIL
-HORIZONTAL
-
-SLIDER
 103
-217
+57
 195
-250
-p
-p
+90
+A-bik
+A-bik
 0
-1
-0.35
-.05
+5
+1.0
+.1
 1
 NIL
 HORIZONTAL
@@ -1206,10 +1108,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-103
-334
-198
-367
+99
+97
+194
+130
 bik_W
 bik_W
 0
@@ -1220,41 +1122,11 @@ bik_W
 NIL
 HORIZONTAL
 
-SLIDER
-103
-295
-195
-328
-D
-D
-0
-5
-4.8
-0.1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-107
-66
-199
-99
-V0-ped
-V0-ped
-0
-10
-1.0
-1
-1
-NIL
-HORIZONTAL
-
 MONITOR
-561
-260
-693
-305
+217
+313
+349
+358
 Reached Destination
 dead-agents
 17
@@ -1262,10 +1134,10 @@ dead-agents
 11
 
 MONITOR
-565
-324
-622
-369
+357
+314
+414
+359
 # Peds
 num-pedestrians
 17
@@ -1273,10 +1145,10 @@ num-pedestrians
 11
 
 MONITOR
-655
-341
-715
-386
+425
+315
+485
+360
 # Bikers
 num-bikers
 17
@@ -1284,10 +1156,10 @@ num-bikers
 11
 
 PLOT
-212
-204
-506
-354
+216
+146
+510
+296
 Bike Speed
 Time
 Speed
@@ -1351,10 +1223,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-106
-384
-198
-417
+102
+137
+194
+170
 bike-comer
 bike-comer
 0
@@ -1381,15 +1253,30 @@ NIL
 HORIZONTAL
 
 SLIDER
-2
-477
-94
-510
+103
+177
+195
+210
 ped-comer
 ped-comer
 0
 120
 50.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+105
+12
+197
+45
+A-ped
+A-ped
+0
+10
+2.0
 1
 1
 NIL
@@ -1784,6 +1671,65 @@ NetLogo 6.4.0
 @#$#@#$#@
 @#$#@#$#@
 @#$#@#$#@
+<experiments>
+  <experiment name="First" repetitions="1" runMetricsEveryStep="false">
+    <setup>setup</setup>
+    <go>move</go>
+    <timeLimit steps="3600"/>
+    <runMetricsCondition>ticks mod 60</runMetricsCondition>
+    <enumeratedValueSet variable="Nb-Bikes">
+      <value value="556"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="A-bik">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bik_S">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped-goer">
+      <value value="50"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bik_E">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped_S">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="A-ped">
+      <value value="2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped_E">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="Ferry">
+      <value value="240"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bike-goer">
+      <value value="75"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bik_N">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped_N">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bike-comer">
+      <value value="75"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bik_W">
+      <value value="0.5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped-comer">
+      <value value="50"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped_W">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="Nb-peds">
+      <value value="294"/>
+    </enumeratedValueSet>
+  </experiment>
+</experiments>
 @#$#@#$#@
 @#$#@#$#@
 default
