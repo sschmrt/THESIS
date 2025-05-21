@@ -197,7 +197,7 @@ end
 to spawn-agents
   if ticks > 1 [
   let ticks-remaining 3601 - ticks + 1
-
+  if ticks-remaining > 0 [
   let remaining-peds Nb-peds - non-ferry-peds-spawned
   let remaining-bikes Nb-bikes - non-ferry-bikes-spawned
 
@@ -221,7 +221,7 @@ to spawn-agents
   repeat bikes-to-emit [
     c-bik
   ]
-
+   ]
   ;; Ferry goers and comers
   if ticks mod ferry = 0 [
     repeat bike-goer [
@@ -546,7 +546,7 @@ to go
         let angle-to-self towards myself
 
         ;; Calculate repulsion force
-        let force A-bik * exp((1 - distance-to-self) / D)
+        let force A-bike * exp((1 - distance-to-self) / D)
         let fx force * sin(angle-to-self)
         let fy force * cos(angle-to-self)
 
@@ -563,7 +563,7 @@ to go
         let angle-to-obstacle towards myself
 
         ;; Calculate repulsion force from the obstacle
-        let obstacle-force A-bik * exp((1 - distance-to-obstacle) / D)
+        let obstacle-force A-bike * exp((1 - distance-to-obstacle) / D)
         let obstacle-fx obstacle-force * sin(angle-to-obstacle)
         let obstacle-fy obstacle-force * cos(angle-to-obstacle)
 
@@ -866,9 +866,9 @@ to plot!
     ;; Plot bike speeds
    set-current-plot "Bike Speed"
    set-current-plot-pen "Mean"
-   Plot mean-speed-bike
+   plot mean-speed-bike
    set-current-plot-pen "Stddev"
-   Plot stddev-speed-bike
+   plot stddev-speed-bike
   ]
 end
 @#$#@#$#@
@@ -972,8 +972,8 @@ SLIDER
 57
 195
 90
-A-bik
-A-bik
+A-bike
+A-bike
 0
 5
 1.0
@@ -1316,7 +1316,7 @@ v0-bike
 v0-bike
 0
 6
-4.6
+3.8
 .1
 1
 NIL
@@ -1772,6 +1772,594 @@ NetLogo 6.4.0
     </enumeratedValueSet>
     <enumeratedValueSet variable="D">
       <value value="0.08"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped_S">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="A-ped">
+      <value value="2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped_E">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bik_N">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bike-goer">
+      <value value="75"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="Ferry">
+      <value value="240"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped_N">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bike-comer">
+      <value value="75"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bik_W">
+      <value value="0.5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="Tr-ped">
+      <value value="0.5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped-comer">
+      <value value="50"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped_W">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="Nb-peds">
+      <value value="294"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="v0-bike">
+      <value value="4.6"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="Validate V0 Bikes" repetitions="10" runMetricsEveryStep="true">
+    <setup>setup</setup>
+    <go>move</go>
+    <timeLimit steps="3600"/>
+    <exitCondition>ticks = 3600</exitCondition>
+    <metric>mean-speed-bike</metric>
+    <metric>mean-speed-ped</metric>
+    <metric>stddev-speed-bike</metric>
+    <metric>stddev-speed-ped</metric>
+    <metric>total-severe</metric>
+    <metric>total-moderate</metric>
+    <metric>total-mild</metric>
+    <runMetricsCondition>ticks = 60</runMetricsCondition>
+    <enumeratedValueSet variable="Nb-Bikes">
+      <value value="556"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="A-bike">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bik_S">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped-goer">
+      <value value="50"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="Tr-bike">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bik_E">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="V0-ped">
+      <value value="1.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="D">
+      <value value="0.08"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped_S">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="A-ped">
+      <value value="2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped_E">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bik_N">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bike-goer">
+      <value value="75"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="Ferry">
+      <value value="240"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped_N">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bike-comer">
+      <value value="75"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bik_W">
+      <value value="0.5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="Tr-ped">
+      <value value="0.5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped-comer">
+      <value value="50"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped_W">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="Nb-peds">
+      <value value="294"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="v0-bike">
+      <value value="2"/>
+      <value value="3"/>
+      <value value="4.5"/>
+      <value value="5"/>
+      <value value="6"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="Validate V0 Ped" repetitions="10" runMetricsEveryStep="false">
+    <setup>setup</setup>
+    <go>move</go>
+    <timeLimit steps="3600"/>
+    <exitCondition>ticks = 3600</exitCondition>
+    <metric>mean-speed-bike</metric>
+    <metric>mean-speed-ped</metric>
+    <metric>stddev-speed-bike</metric>
+    <metric>stddev-speed-ped</metric>
+    <metric>total-severe</metric>
+    <metric>total-moderate</metric>
+    <metric>total-mild</metric>
+    <runMetricsCondition>ticks mod 60 = 0</runMetricsCondition>
+    <enumeratedValueSet variable="Nb-Bikes">
+      <value value="556"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="A-bike">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bik_S">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped-goer">
+      <value value="50"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="Tr-bike">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bik_E">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="V0-ped">
+      <value value="0.5"/>
+      <value value="1"/>
+      <value value="1.3"/>
+      <value value="1.8"/>
+      <value value="2.5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="D">
+      <value value="0.08"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped_S">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="A-ped">
+      <value value="2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped_E">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bik_N">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bike-goer">
+      <value value="75"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="Ferry">
+      <value value="240"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped_N">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bike-comer">
+      <value value="75"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bik_W">
+      <value value="0.5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="Tr-ped">
+      <value value="0.5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped-comer">
+      <value value="50"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped_W">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="Nb-peds">
+      <value value="294"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="v0-bike">
+      <value value="4.6"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="Validate Tr-bike" repetitions="10" runMetricsEveryStep="false">
+    <setup>setup</setup>
+    <go>move</go>
+    <timeLimit steps="3600"/>
+    <exitCondition>ticks = 3600</exitCondition>
+    <metric>mean-speed-bike</metric>
+    <metric>mean-speed-ped</metric>
+    <metric>stddev-speed-bike</metric>
+    <metric>stddev-speed-ped</metric>
+    <metric>total-severe</metric>
+    <metric>total-moderate</metric>
+    <metric>total-mild</metric>
+    <runMetricsCondition>ticks mod 60 = 0</runMetricsCondition>
+    <enumeratedValueSet variable="Nb-Bikes">
+      <value value="556"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="A-bike">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bik_S">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped-goer">
+      <value value="50"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="Tr-bike">
+      <value value="0.1"/>
+      <value value="0.3"/>
+      <value value="0.5"/>
+      <value value="1"/>
+      <value value="1.5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bik_E">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="V0-ped">
+      <value value="1.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="D">
+      <value value="0.08"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped_S">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="A-ped">
+      <value value="2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped_E">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bik_N">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bike-goer">
+      <value value="75"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="Ferry">
+      <value value="240"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped_N">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bike-comer">
+      <value value="75"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bik_W">
+      <value value="0.5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="Tr-ped">
+      <value value="0.5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped-comer">
+      <value value="50"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped_W">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="Nb-peds">
+      <value value="294"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="v0-bike">
+      <value value="4.6"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="Validate Tr-ped" repetitions="10" runMetricsEveryStep="false">
+    <setup>setup</setup>
+    <go>move</go>
+    <timeLimit steps="3600"/>
+    <exitCondition>ticks = 3600</exitCondition>
+    <metric>mean-speed-bike</metric>
+    <metric>mean-speed-ped</metric>
+    <metric>stddev-speed-bike</metric>
+    <metric>stddev-speed-ped</metric>
+    <metric>total-severe</metric>
+    <metric>total-moderate</metric>
+    <metric>total-mild</metric>
+    <runMetricsCondition>ticks mod 60 = 0</runMetricsCondition>
+    <enumeratedValueSet variable="Nb-Bikes">
+      <value value="556"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="A-bike">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bik_S">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped-goer">
+      <value value="50"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="Tr-bike">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bik_E">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="V0-ped">
+      <value value="1.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="D">
+      <value value="0.08"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped_S">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="A-ped">
+      <value value="2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped_E">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bik_N">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bike-goer">
+      <value value="75"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="Ferry">
+      <value value="240"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped_N">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bike-comer">
+      <value value="75"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bik_W">
+      <value value="0.5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="Tr-ped">
+      <value value="0.1"/>
+      <value value="0.3"/>
+      <value value="0.5"/>
+      <value value="1"/>
+      <value value="1.5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped-comer">
+      <value value="50"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped_W">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="Nb-peds">
+      <value value="294"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="v0-bike">
+      <value value="4.6"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="Validate A bike" repetitions="10" runMetricsEveryStep="false">
+    <setup>setup</setup>
+    <go>move</go>
+    <timeLimit steps="3600"/>
+    <exitCondition>ticks = 3600</exitCondition>
+    <metric>mean-speed-bike</metric>
+    <metric>mean-speed-ped</metric>
+    <metric>stddev-speed-bike</metric>
+    <metric>stddev-speed-ped</metric>
+    <metric>total-severe</metric>
+    <metric>total-moderate</metric>
+    <metric>total-mild</metric>
+    <runMetricsCondition>ticks mod 60 = 0</runMetricsCondition>
+    <enumeratedValueSet variable="Nb-Bikes">
+      <value value="556"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="A-bike">
+      <value value="3"/>
+      <value value="3.5"/>
+      <value value="4"/>
+      <value value="4.5"/>
+      <value value="5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bik_S">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped-goer">
+      <value value="50"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="Tr-bike">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bik_E">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="V0-ped">
+      <value value="1.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="D">
+      <value value="0.08"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped_S">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="A-ped">
+      <value value="2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped_E">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bik_N">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bike-goer">
+      <value value="75"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="Ferry">
+      <value value="240"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped_N">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bike-comer">
+      <value value="75"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bik_W">
+      <value value="0.5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="Tr-ped">
+      <value value="0.5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped-comer">
+      <value value="50"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped_W">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="Nb-peds">
+      <value value="294"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="v0-bike">
+      <value value="4.6"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="Validate A ped" repetitions="10" runMetricsEveryStep="false">
+    <setup>setup</setup>
+    <go>move</go>
+    <timeLimit steps="3600"/>
+    <exitCondition>ticks = 3600</exitCondition>
+    <metric>mean-speed-bike</metric>
+    <metric>mean-speed-ped</metric>
+    <metric>stddev-speed-bike</metric>
+    <metric>stddev-speed-ped</metric>
+    <metric>total-severe</metric>
+    <metric>total-moderate</metric>
+    <metric>total-mild</metric>
+    <runMetricsCondition>ticks mod 60 = 0</runMetricsCondition>
+    <enumeratedValueSet variable="Nb-Bikes">
+      <value value="556"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="A-bike">
+      <value value="2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bik_S">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped-goer">
+      <value value="50"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="Tr-bike">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bik_E">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="V0-ped">
+      <value value="1.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="D">
+      <value value="0.08"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped_S">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="A-ped">
+      <value value="4.5"/>
+      <value value="4.875"/>
+      <value value="5.25"/>
+      <value value="5.625"/>
+      <value value="6"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped_E">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bik_N">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bike-goer">
+      <value value="75"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="Ferry">
+      <value value="240"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped_N">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bike-comer">
+      <value value="75"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bik_W">
+      <value value="0.5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="Tr-ped">
+      <value value="0.5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped-comer">
+      <value value="50"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped_W">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="Nb-peds">
+      <value value="294"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="v0-bike">
+      <value value="4.6"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="Validate D" repetitions="10" runMetricsEveryStep="false">
+    <setup>setup</setup>
+    <go>move</go>
+    <timeLimit steps="3600"/>
+    <exitCondition>ticks = 3600</exitCondition>
+    <metric>mean-speed-bike</metric>
+    <metric>mean-speed-ped</metric>
+    <metric>stddev-speed-bike</metric>
+    <metric>stddev-speed-ped</metric>
+    <metric>total-severe</metric>
+    <metric>total-moderate</metric>
+    <metric>total-mild</metric>
+    <runMetricsCondition>ticks mod 60 = 0</runMetricsCondition>
+    <enumeratedValueSet variable="Nb-Bikes">
+      <value value="556"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="A-bike">
+      <value value="2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bik_S">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped-goer">
+      <value value="50"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="Tr-bike">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bik_E">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="V0-ped">
+      <value value="1.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="D">
+      <value value="0.2"/>
+      <value value="0.5"/>
+      <value value="0.8"/>
+      <value value="1.2"/>
+      <value value="2"/>
     </enumeratedValueSet>
     <enumeratedValueSet variable="ped_S">
       <value value="0.2"/>
