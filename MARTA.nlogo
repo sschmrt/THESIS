@@ -8,7 +8,7 @@ extensions [gis table csv]
 breed [peds ped]
 breed [bikes bike]
 
-globals [D dt v0-ped v0-bike Tr-bike Tr-ped non-ferry-peds-spawned non-ferry-bikes-spawned total-severe total-moderate total-mild num-pedestrians num-bikers num-agents dead-agents destination-features destination-tables time mean-speed mean-speed-bike mean-speed-ped stddev-speed-bike stddev-speed-ped flow-cum polygons waitingpoint dataset wgs84-dataset study-area-patches]
+globals [dt non-ferry-peds-spawned non-ferry-bikes-spawned total-severe total-moderate total-mild num-pedestrians num-bikers num-agents dead-agents destination-features destination-tables time mean-speed mean-speed-bike mean-speed-ped stddev-speed-bike stddev-speed-ped flow-cum polygons waitingpoint dataset wgs84-dataset study-area-patches]
 peds-own [last-x last-y stucktimer speedx speedy state my-destination origin break-timer waited]
 bikes-own [last-x last-y stucktimer speedx speedy state my-destination origin break-timer waited]
 patches-own [break-count severe moderate mild flow obstacle? study-patch? destination-type function-id waiting destination-patch ]
@@ -34,12 +34,7 @@ to setup
   ask patches [ set moderate 0 ]
   ask patches [ set mild 0 ]
   ask patches [ set break-count 0 ]
-  set Tr-bike 0.3
-  set Tr-ped 0.5
-  set v0-ped 1.4
-  set v0-bike 4.6
   set dt 1
-  set D 0.08
 
   ; Load the GeoJSON dataset
   set dataset gis:load-dataset "C:/Users/marta/Desktop/THESIS/Layers/Ruji.geojson"
@@ -1282,6 +1277,81 @@ A-ped
 NIL
 HORIZONTAL
 
+SLIDER
+99
+221
+191
+254
+Tr-ped
+Tr-ped
+0
+1.5
+0.5
+.1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+100
+259
+192
+292
+Tr-bike
+Tr-bike
+0
+1
+0.3
+.1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+99
+300
+191
+333
+v0-bike
+v0-bike
+0
+6
+4.6
+.1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+100
+338
+192
+371
+V0-ped
+V0-ped
+0
+2.5
+1.3
+.1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+101
+376
+193
+409
+D
+D
+0
+2
+0.08
+.01
+1
+NIL
+HORIZONTAL
+
 @#$#@#$#@
 ## WHAT IS IT?
 
@@ -1672,11 +1742,13 @@ NetLogo 6.4.0
 @#$#@#$#@
 @#$#@#$#@
 <experiments>
-  <experiment name="First" repetitions="1" runMetricsEveryStep="false">
+  <experiment name="Tryout" repetitions="1" runMetricsEveryStep="true">
+    <preExperiment>reset-ticks</preExperiment>
     <setup>setup</setup>
-    <go>move</go>
+    <go>go</go>
     <timeLimit steps="3600"/>
-    <runMetricsCondition>ticks mod 60</runMetricsCondition>
+    <exitCondition>ticks &gt; 3600</exitCondition>
+    <metric>count turtles</metric>
     <enumeratedValueSet variable="Nb-Bikes">
       <value value="556"/>
     </enumeratedValueSet>
@@ -1689,8 +1761,17 @@ NetLogo 6.4.0
     <enumeratedValueSet variable="ped-goer">
       <value value="50"/>
     </enumeratedValueSet>
+    <enumeratedValueSet variable="Tr-bike">
+      <value value="0.3"/>
+    </enumeratedValueSet>
     <enumeratedValueSet variable="bik_E">
       <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="V0-ped">
+      <value value="1.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="D">
+      <value value="0.08"/>
     </enumeratedValueSet>
     <enumeratedValueSet variable="ped_S">
       <value value="0.2"/>
@@ -1701,14 +1782,14 @@ NetLogo 6.4.0
     <enumeratedValueSet variable="ped_E">
       <value value="0.3"/>
     </enumeratedValueSet>
-    <enumeratedValueSet variable="Ferry">
-      <value value="240"/>
+    <enumeratedValueSet variable="bik_N">
+      <value value="0.3"/>
     </enumeratedValueSet>
     <enumeratedValueSet variable="bike-goer">
       <value value="75"/>
     </enumeratedValueSet>
-    <enumeratedValueSet variable="bik_N">
-      <value value="0.3"/>
+    <enumeratedValueSet variable="Ferry">
+      <value value="240"/>
     </enumeratedValueSet>
     <enumeratedValueSet variable="ped_N">
       <value value="0.3"/>
@@ -1719,6 +1800,9 @@ NetLogo 6.4.0
     <enumeratedValueSet variable="bik_W">
       <value value="0.5"/>
     </enumeratedValueSet>
+    <enumeratedValueSet variable="Tr-ped">
+      <value value="0.5"/>
+    </enumeratedValueSet>
     <enumeratedValueSet variable="ped-comer">
       <value value="50"/>
     </enumeratedValueSet>
@@ -1727,6 +1811,9 @@ NetLogo 6.4.0
     </enumeratedValueSet>
     <enumeratedValueSet variable="Nb-peds">
       <value value="294"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="v0-bike">
+      <value value="4.6"/>
     </enumeratedValueSet>
   </experiment>
 </experiments>
