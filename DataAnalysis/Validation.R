@@ -1,8 +1,15 @@
 library(readr)
 library(dplyr)
 library(tidyr)
+library(purrr)
 
-# Step 1: Specify the column names as described
+setwd("C:/Users/marta/Desktop/THESIS/Outputs")
+
+# Variables and files
+ofat_vars <- c("v0-bike", "V0-ped", "Tr-ped", "Tr-bike", "A-bik", "A-ped", "D")
+csv_files <- paste0(ofat_vars, ".csv")
+
+# Specify column names
 col_names <- c(
   "run", "mean_speed_ped", "mean_speed_bike", "stddev_speed_ped", "stddev_speed_bike",
   "Nb_Bikes", "A_bike", "bik_S", "ped_goer", "Tr_bike", "bik_E", "V0_ped", "D", "ped_S",
@@ -10,37 +17,57 @@ col_names <- c(
   "ped_comer", "ped_W", "Nb_peds", "v0_bike", "total_severe", "total_moderate", "total_mild"
 )
 
-# Read the CSV file (update filename)
 setwd("C:/Users/marta/Desktop/THESIS/Outputs")
 dat <- read_csv("V0Bikes.csv", col_names = col_names, show_col_types = FALSE)
 
-# Step 3: Calculate per-run CVs
+# Calculate per-run CVs
 dat <- dat %>%
   mutate(
     CV_ped = stddev_speed_ped / mean_speed_ped,
     CV_bike = stddev_speed_bike / mean_speed_bike
   )
-# Step 4: Group by v0_bike, calculate summary stats
-v0 <- dat %>%
-  group_by(v0_bike) %>%
-  summarise(
-    n_runs = n(),
-    mean_mean_speed_ped = mean(mean_speed_ped, na.rm = TRUE),
-    mean_mean_speed_bike = mean(mean_speed_bike, na.rm = TRUE),
-    mean_stddev_speed_ped = mean(stddev_speed_ped, na.rm = TRUE),
-    mean_stddev_speed_bike = mean(stddev_speed_bike, na.rm = TRUE),
-    mean_CV_ped = mean(CV_ped, na.rm = TRUE),
-    mean_CV_bike = mean(CV_bike, na.rm = TRUE),
-    total_severe = mean(total_severe, na.rm = TRUE),
-    total_moderate = mean(total_moderate, na.rm = TRUE),
-    total_mild = mean(total_mild, na.rm = TRUE)
-  ) %>%
-  ungroup()
 
-# Step 5: Save summary table for Excel/plots
-write_csv(v0, "ofat_summary_by_v0bike.csv")
+# List of variables you want to do OFAT for (change as needed)
+ofat_vars <- c("v0_bike", "Nb_Bikes", "A_bike", "V0_ped") # Add your other variables here
 
-library(ggplot2)
-ggplot(dat, aes(x = as.factor(v0_bike), y = CV_ped)) +
-  geom_boxplot() +
-  labs(x = "v0_bike", y = "CV (Pedestrians)", title = "CV of Pedestrian Speed by v0_bike")
+analyze_ofat_csv <- function(csv, var) {
+  dat <- read_csv(csv, col_names = col_names, show_col_types = FALSE)
+  
+  dat <- dat %>%
+    mutate(
+      CV_ped = stddev_speed_ped / mean_speed_ped,
+      CV_bike = stddev_speed_bike / mean_speed_bike
+    )
+  
+  summary_tbl <- dat %>%
+    group_by(.data[[var]]) %>%
+    summarise(
+      n_runs = n(),
+      mean_CV_ped = mean(CV_ped, na.rm = TRUE),
+      mean_CV_bike = mean(CV_bike, na.rm = TRUE),
+      cv_severe = sd(total_severe, na.rm = TRUE) / mean(total_severe, na.rm = TRUE),
+      cv_moderate = sd(total_moderate, na.rm = TRUE) / mean(total_moderate, na.rm = TRUE),
+      cv_mild = sd(total_mild, na.rm = TRUE) / mean(total_mild, na.rm = TRUE)
+    ) %>%
+    ungroup() %>%
+    mutate(
+      total_CV = rowMeans(select(., mean_CV_ped, mean_CV_bike, cv_severe, cv_moderate, cv_mild), na.rm = TRUE)
+    )
+  
+  best_row <- summary_tbl %>% filter(total_CV == min(total_CV, na.rm = TRUE))
+  
+  # Write summary for this variable to CSV
+  write_csv(summary_tbl, paste0("ofat_summary_by_", var, ".csv"))
+  
+  list(summary = summary_tbl, best = best_row)
+}
+
+# Process all CSVs and variables
+results <- map2(csv_files, ofat_vars, analyze_ofat_csv)
+names(results) <- ofat_vars
+
+# Print best parameter value for each OFAT variable
+for (v in ofat_vars) {
+  cat("Best", v, "for lowest total CV is:\n")
+  print(results[[v]]$best[[v]])
+}
