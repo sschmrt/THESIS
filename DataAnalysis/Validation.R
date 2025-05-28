@@ -12,24 +12,18 @@ csv_files <- paste0(ofat_vars, ".csv")
 # Specify column names
 col_names <- c(
   "run", "mean_speed_ped", "mean_speed_bike", "stddev_speed_ped", "stddev_speed_bike",
-  "Nb_Bikes", "A_bike", "bik_S", "ped_goer", "Tr_bike", "bik_E", "V0_ped", "D", "ped_S",
-  "A_ped", "ped_E", "bik_N", "bike_goer", "Ferry", "ped_N", "bike_comer", "bik_W", "Tr_ped",
-  "ped_comer", "ped_W", "Nb_peds", "v0_bike", "total_severe", "total_moderate", "total_mild"
+  "Nb_Bikes", "A-bik", "bik_S", "ped_goer", "Tr-bike", "bik_E", "V0-ped", "D", "ped_S",
+  "A-ped", "ped_E", "bik_N", "bike_goer", "Ferry", "ped_N", "bike_comer", "bik_W", "Tr-ped",
+  "ped_comer", "ped_W", "Nb_peds", "v0-bike", "total_severe", "total_moderate", "total_mild"
 )
 
-setwd("C:/Users/marta/Desktop/THESIS/Outputs")
-dat <- read_csv("V0Bikes.csv", col_names = col_names, show_col_types = FALSE)
+# Read all CSVs into a named list of data frames
+data_list <- map(csv_files, ~read_csv(.x, col_names = col_names))
 
-# Calculate per-run CVs
-dat <- dat %>%
-  mutate(
-    CV_ped = stddev_speed_ped / mean_speed_ped,
-    CV_bike = stddev_speed_bike / mean_speed_bike
-  )
+# Name each data frame in the list by its variable
+names(data_list) <- ofat_vars
 
-# List of variables you want to do OFAT for (change as needed)
-ofat_vars <- c("v0_bike", "Nb_Bikes", "A_bike", "V0_ped") # Add your other variables here
-
+# Set Up Analysis per Variable
 analyze_ofat_csv <- function(csv, var) {
   dat <- read_csv(csv, col_names = col_names, show_col_types = FALSE)
   
@@ -56,7 +50,7 @@ analyze_ofat_csv <- function(csv, var) {
   
   best_row <- summary_tbl %>% filter(total_CV == min(total_CV, na.rm = TRUE))
   
-  # Write summary for this variable to CSV
+# Write summary for this variable to CSV
   write_csv(summary_tbl, paste0("ofat_summary_by_", var, ".csv"))
   
   list(summary = summary_tbl, best = best_row)
