@@ -374,10 +374,10 @@ to move
   tick
   go
   enforce-bounds
+  export-patch-data
+  export-global-data
   if ticks = 3600 [
-    stop
-    export-patch-data
-    export-global-data ]
+    stop ]
 end
 
 to go
@@ -395,9 +395,7 @@ to go
 
     ;; Unstick it
       if stucktimer > 60 [
-    right (random 90 - 45)
-    fd 2
-    set stucktimer 0
+      die
   ]
 
     ;; Ensure agent has a valid destination
@@ -792,19 +790,19 @@ to update-histogram
 end
 
 to export-patch-data
-  file-open (word "Simulation-patch-run" behaviorSpace-run-number ".csv")
+  file-open (word "Patch-run.csv")
   ask patches [
-    file-print (word pxcor "," pycor "," severe "," moderate "," mild "," flow)
+    file-print (word behaviorSpace-run-number "," pxcor "," pycor "," severe "," moderate "," mild "," flow "," break-count)
   ]
   file-close
 end
 
 to export-global-data
-  file-open (word "Simulation-global-run" behaviorSpace-run-number ".csv")
+  file-open (word "Global-run.csv")
   if ticks = 0 [
-    file-print "tick,mean-speed-ped,mean-speed-bike,stddev-speed-ped,stddev-speed-bike"
+    file-print "run,mean-speed-ped,mean-speed-bike,stddev-speed-ped,stddev-speed-bike,Nb-Bikes,A-bike,bik_S,ped-goer,Tr-bike,bik_E,V0-ped,D,ped_S,A-ped,ped_E,bik_N,bike-goer,Ferry,ped_N,bike-comer,bik_W,Tr-ped,ped-comer,ped_W,Nb-peds,v0-bike,total-severe,total-moderate,total-mild"
   ]
-  file-print (word ticks "," mean-speed-ped "," mean-speed-bike "," stddev-speed-ped "," stddev-speed-bike)
+  file-print (word behaviorSpace-run-number "," mean-speed-ped "," mean-speed-bike "," stddev-speed-ped "," stddev-speed-bike "," Nb-Bikes "," A-bike "," bik_S "," ped-goer "," Tr-bike "," bik_E "," V0-ped "," D "," ped_S "," A-ped "," ped_E "," bik_N "," bike-goer "," Ferry "," ped_N "," bike-comer "," bik_W "," Tr-ped "," ped-comer "," ped_W "," Nb-peds "," v0-bike "," total-severe "," total-moderate "," total-mild)
   file-close
 end
 
@@ -1743,16 +1741,14 @@ NetLogo 6.4.0
 @#$#@#$#@
 <experiments>
   <experiment name="Tryout" repetitions="1" runMetricsEveryStep="true">
-    <preExperiment>reset-ticks</preExperiment>
     <setup>setup</setup>
-    <go>go</go>
+    <go>move</go>
     <timeLimit steps="3600"/>
     <exitCondition>ticks &gt; 3600</exitCondition>
-    <metric>count turtles</metric>
     <enumeratedValueSet variable="Nb-Bikes">
       <value value="556"/>
     </enumeratedValueSet>
-    <enumeratedValueSet variable="A-bik">
+    <enumeratedValueSet variable="A-bike">
       <value value="1"/>
     </enumeratedValueSet>
     <enumeratedValueSet variable="bik_S">
@@ -1816,18 +1812,12 @@ NetLogo 6.4.0
       <value value="4.6"/>
     </enumeratedValueSet>
   </experiment>
-  <experiment name="Validate V0 Bikes" repetitions="10" runMetricsEveryStep="true">
+  <experiment name="Validate V0 Bikes" repetitions="20" runMetricsEveryStep="true">
     <setup>setup</setup>
     <go>move</go>
+    <postRun>export-global-data</postRun>
     <timeLimit steps="3600"/>
     <exitCondition>ticks = 3600</exitCondition>
-    <metric>mean-speed-bike</metric>
-    <metric>mean-speed-ped</metric>
-    <metric>stddev-speed-bike</metric>
-    <metric>stddev-speed-ped</metric>
-    <metric>total-severe</metric>
-    <metric>total-moderate</metric>
-    <metric>total-mild</metric>
     <runMetricsCondition>ticks = 60</runMetricsCondition>
     <enumeratedValueSet variable="Nb-Bikes">
       <value value="556"/>
@@ -1900,9 +1890,10 @@ NetLogo 6.4.0
       <value value="6"/>
     </enumeratedValueSet>
   </experiment>
-  <experiment name="Validate V0 Ped" repetitions="10" runMetricsEveryStep="false">
+  <experiment name="Validate V0 Ped" repetitions="20" runMetricsEveryStep="false">
     <setup>setup</setup>
     <go>move</go>
+    <postRun>export-global-data</postRun>
     <timeLimit steps="3600"/>
     <exitCondition>ticks = 3600</exitCondition>
     <metric>mean-speed-bike</metric>
@@ -1984,9 +1975,10 @@ NetLogo 6.4.0
       <value value="4.6"/>
     </enumeratedValueSet>
   </experiment>
-  <experiment name="Validate Tr-bike" repetitions="10" runMetricsEveryStep="false">
+  <experiment name="Validate Tr-bike" repetitions="20" runMetricsEveryStep="false">
     <setup>setup</setup>
     <go>move</go>
+    <postRun>export-global-data</postRun>
     <timeLimit steps="3600"/>
     <exitCondition>ticks = 3600</exitCondition>
     <metric>mean-speed-bike</metric>
@@ -2068,9 +2060,10 @@ NetLogo 6.4.0
       <value value="4.6"/>
     </enumeratedValueSet>
   </experiment>
-  <experiment name="Validate Tr-ped" repetitions="10" runMetricsEveryStep="false">
+  <experiment name="Validate Tr-ped" repetitions="20" runMetricsEveryStep="false">
     <setup>setup</setup>
     <go>move</go>
+    <postRun>export-global-data</postRun>
     <timeLimit steps="3600"/>
     <exitCondition>ticks = 3600</exitCondition>
     <metric>mean-speed-bike</metric>
@@ -2152,18 +2145,12 @@ NetLogo 6.4.0
       <value value="4.6"/>
     </enumeratedValueSet>
   </experiment>
-  <experiment name="Validate A bike" repetitions="10" runMetricsEveryStep="false">
+  <experiment name="Validate A bike" repetitions="20" runMetricsEveryStep="false">
     <setup>setup</setup>
     <go>move</go>
+    <postRun>export-global-data</postRun>
     <timeLimit steps="3600"/>
     <exitCondition>ticks = 3600</exitCondition>
-    <metric>mean-speed-bike</metric>
-    <metric>mean-speed-ped</metric>
-    <metric>stddev-speed-bike</metric>
-    <metric>stddev-speed-ped</metric>
-    <metric>total-severe</metric>
-    <metric>total-moderate</metric>
-    <metric>total-mild</metric>
     <runMetricsCondition>ticks mod 60 = 0</runMetricsCondition>
     <enumeratedValueSet variable="Nb-Bikes">
       <value value="556"/>
@@ -2236,18 +2223,12 @@ NetLogo 6.4.0
       <value value="4.6"/>
     </enumeratedValueSet>
   </experiment>
-  <experiment name="Validate A ped" repetitions="10" runMetricsEveryStep="false">
+  <experiment name="Validate A ped" repetitions="20" runMetricsEveryStep="false">
     <setup>setup</setup>
     <go>move</go>
+    <postRun>export-global-data</postRun>
     <timeLimit steps="3600"/>
     <exitCondition>ticks = 3600</exitCondition>
-    <metric>mean-speed-bike</metric>
-    <metric>mean-speed-ped</metric>
-    <metric>stddev-speed-bike</metric>
-    <metric>stddev-speed-ped</metric>
-    <metric>total-severe</metric>
-    <metric>total-moderate</metric>
-    <metric>total-mild</metric>
     <runMetricsCondition>ticks mod 60 = 0</runMetricsCondition>
     <enumeratedValueSet variable="Nb-Bikes">
       <value value="556"/>
@@ -2320,18 +2301,12 @@ NetLogo 6.4.0
       <value value="4.6"/>
     </enumeratedValueSet>
   </experiment>
-  <experiment name="Validate D" repetitions="10" runMetricsEveryStep="false">
+  <experiment name="Validate D" repetitions="20" runMetricsEveryStep="false">
     <setup>setup</setup>
     <go>move</go>
+    <postRun>export-global-data</postRun>
     <timeLimit steps="3600"/>
     <exitCondition>ticks = 3600</exitCondition>
-    <metric>mean-speed-bike</metric>
-    <metric>mean-speed-ped</metric>
-    <metric>stddev-speed-bike</metric>
-    <metric>stddev-speed-ped</metric>
-    <metric>total-severe</metric>
-    <metric>total-moderate</metric>
-    <metric>total-mild</metric>
     <runMetricsCondition>ticks mod 60 = 0</runMetricsCondition>
     <enumeratedValueSet variable="Nb-Bikes">
       <value value="556"/>
@@ -2402,6 +2377,78 @@ NetLogo 6.4.0
     </enumeratedValueSet>
     <enumeratedValueSet variable="v0-bike">
       <value value="4.6"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="LastVal" repetitions="30" runMetricsEveryStep="false">
+    <setup>setup</setup>
+    <go>move</go>
+    <postRun>export-global-data</postRun>
+    <timeLimit steps="3600"/>
+    <enumeratedValueSet variable="Nb-Bikes">
+      <value value="556"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="A-bike">
+      <value value="4"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bik_S">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped-goer">
+      <value value="50"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="Tr-bike">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bik_E">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="V0-ped">
+      <value value="1.8"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="D">
+      <value value="1.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped_S">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="A-ped">
+      <value value="4.8"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped_E">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bik_N">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bike-goer">
+      <value value="75"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="Ferry">
+      <value value="240"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped_N">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bike-comer">
+      <value value="75"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="bik_W">
+      <value value="0.5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="Tr-ped">
+      <value value="0.3"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped-comer">
+      <value value="50"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="ped_W">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="Nb-peds">
+      <value value="294"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="v0-bike">
+      <value value="4.5"/>
     </enumeratedValueSet>
   </experiment>
 </experiments>
