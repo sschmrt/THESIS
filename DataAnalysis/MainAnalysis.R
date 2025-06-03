@@ -8,21 +8,70 @@ library(flextable)
 library(officer)
 library (gganimate)
 
-setwd("C:/Users/marta/Desktop/THESIS/Outputs")
-# PATCH (readr)
-patch_colnames <- c("run", "tick", "pxcor", "pycor", "severe", "moderate", "mild", "flow", "break-count")
-patchdata <- readr::read_csv("HighPatch.csv", col_names = patch_colnames, show_col_types = FALSE)
+# ==============================
+# 1. Load and Prepare
+# ==============================
 
-# GLOBAL (base R)
+# Set Directory
+setwd("C:/Users/marta/Desktop/THESIS/Outputs")
+# Define File Lists
+global_files <- c("LowGlobal.csv", "2030Global.csv", "HighGlobal.csv")
+patch_files  <- c("LowPatch.csv", "2030Patch.csv", "HighPatch.csv")
+
+# Define column names
+patch_colnames <- c("run", "tick", "pxcor", "pycor", "severe", "moderate", "mild", "flow", "break-count")
 global_colnames <- c(
-  "run", "tick", "mean-speed-ped", "mean-speed-bike", "stddev-speed-ped", "stddev-speed-bike",
+  "run", "tick", "mean.speed.ped", "mean.speed.bike", "stddev-speed-ped", "stddev-speed-bike",
   "Nb-Bikes", "A-bike", "bik_S", "ped-goer", "Tr-bike", "bik_E", "V0-ped", "D", "ped_S", "A-ped",
   "ped_E", "bik_N", "bike-goer", "Ferry", "ped_N", "bike-comer", "bik_W", "Tr-ped", "ped-comer",
   "ped_W", "Nb-peds", "v0-bike", "total-severe", "total-moderate", "total-mild"
 )
-global_data <- read.csv("HighGlobal.csv", col.names = global_colnames, header = FALSE)
 
-patchdata_clean <- patchdata %>%
+# Helper Function to Identify Scenario
+get_scenario <- function(filename) {
+  if (grepl("Low", filename, ignore.case = TRUE)) return("Low Density")
+  if (grepl("2030", filename, ignore.case = TRUE)) return("2030")
+  if (grepl("High", filename, ignore.case = TRUE)) return("High Density")
+  return("Unknown")
+}
+
+# LowGlobal
+LowGlobal <- read.csv("LowGlobal.csv")
+colnames(LowGlobal) <- global_colnames
+LowGlobal$Scenario <- get_scenario("LowGlobal.csv")
+LowGlobal$Type <- "Global"
+
+# LowPatch
+LowPatch <- read.csv("LowPatch.csv")
+colnames(LowPatch) <- patch_colnames
+LowPatch$Scenario <- get_scenario("LowPatch.csv")
+LowPatch$Type <- "Patch"
+
+# 2030Global
+X2030Global <- read.csv("2030Global.csv")
+colnames(X2030Global) <- global_colnames
+X2030Global$Scenario <- get_scenario("2030Global.csv")
+X2030Global$Type <- "Global"
+
+# 2030Patch
+X2030Patch <- read.csv("2030Patch.csv")
+colnames(X2030Patch) <- patch_colnames
+X2030Patch$Scenario <- get_scenario("2030Patch.csv")
+X2030Patch$Type <- "Patch"
+
+# HighGlobal
+HighGlobal <- read.csv("HighGlobal.csv")
+colnames(HighGlobal) <- global_colnames
+HighGlobal$Scenario <- get_scenario("HighGlobal.csv")
+HighGlobal$Type <- "Global"
+
+# HighPatch
+HighPatch <- read.csv("HighPatch.csv")
+colnames(HighPatch) <- patch_colnames
+HighPatch$Scenario <- get_scenario("HighPatch.csv")
+HighPatch$Type <- "Patch"
+
+LowPatch_clean <- LowPatch %>%
   filter(
     !is.na(run),
     run >= 0 & run <= 30,
@@ -30,138 +79,177 @@ patchdata_clean <- patchdata %>%
                 2100, 2400, 2700, 3000, 3300, 3600),
     pxcor >= -30 & pxcor <= 30,
     pycor >= -30 & pycor <= 30,
-    !is.na(severe) & severe > 0,
-    !is.na(moderate) & moderate > 0,
-    !is.na(mild) & mild > 0,
-    !is.na(flow) & flow > 0,
-    !is.na(`break-count`) & `break-count` > 0
+    !is.na(severe) & severe >= 0,
+    !is.na(moderate) & moderate >= 0,
+    !is.na(mild) & mild >= 0,
+    !is.na(flow) & flow >= 0,
+    !is.na(`break-count`) & `break-count` >= 0
   )
 
-# ==============================
-# 1. Line plots of speed
-# ==============================
-
-mean_per_tick <- global_data %>%
-  group_by(tick) %>%
-  summarize(
-    mean_bike = mean(`mean.speed.bike`, na.rm = TRUE),
-    sd_bike = sd(`mean.speed.bike`, na.rm = TRUE),
-    mean_ped = mean(`mean.speed.ped`, na.rm = TRUE),
-    sd_ped = sd(`mean.speed.ped`, na.rm = TRUE)
-  )
-# Bike speed over time
-mean_per_tick_long <- mean_per_tick %>%
-  pivot_longer(
-    cols = c(mean_bike, mean_ped, sd_bike, sd_ped),
-    names_to = c("metric", "agent"),
-    names_pattern = "(mean|sd)_(bike|ped)",
-    values_to = "value"
-  ) %>%
-  pivot_wider(
-    names_from = "metric",
-    values_from = "value"
+X2030Patch_clean <- X2030Patch %>%
+  filter(
+    !is.na(run),
+    run >= 0 & run <= 30,
+    tick %in% c(300, 600, 900, 1200, 1500, 1800, 
+                2100, 2400, 2700, 3000, 3300, 3600),
+    pxcor >= -30 & pxcor <= 30,
+    pycor >= -30 & pycor <= 30,
+    !is.na(severe) & severe >= 0,
+    !is.na(moderate) & moderate >= 0,
+    !is.na(mild) & mild >= 0,
+    !is.na(flow) & flow >= 0,
+    !is.na(`break-count`) & `break-count` >= 0
   )
 
-# Now plot both with color/fill by agent
-ggplot(mean_per_tick_long, aes(x = tick, y = mean, color = agent, fill = agent)) +
-  geom_line(size = 1) +
-  geom_ribbon(aes(ymin = mean - sd, ymax = mean + sd), alpha = 0.2, color = NA) +
-  scale_color_manual(values = c("bike" = "blue", "ped" = "red")) +
-  scale_fill_manual(values = c("bike" = "blue", "ped" = "red")) +
-  labs(title = "Mean Speed Over Time", x = "Tick", y = "Mean Speed (m/s)", color = "Agent", fill = "Agent") +
-  theme_minimal()
-
-# ==============================
-# 2. Boxplots of speed per tick
-# ==============================
-
-global_long <- global_data %>%
-  pivot_longer(cols = c(mean.speed.bike, mean.speed.ped),
-               names_to = "agent", values_to = "speed") %>%
-  mutate(agent = ifelse(agent == "mean.speed.bike", "Bike", "Pedestrian"))
-
-ggplot(global_long, aes(x = as.factor(tick), y = speed, fill = agent)) +
-  geom_boxplot(outlier.size = 0.5, position = position_dodge(width = 0.8)) +
-  labs(title = "Distribution of Speeds per Tick", x = "Tick", y = "Speed (m/s)") +
-  theme_minimal() +
-  scale_fill_manual(values = c("Bike" = "blue", "Pedestrian" = "red"))
-
-# ==============================
-# 3. Conflict heatmap animation (time lapse)
-# ==============================
-
-patch_conflict_totals <- patchdata_clean %>%
-  group_by(run, pxcor, pycor) %>%
-  summarize(
-    total_severe = sum(severe, na.rm = TRUE),
-    total_moderate = sum(moderate, na.rm = TRUE),
-    total_mild = sum(mild, na.rm = TRUE),
-    .groups = "drop"
+HighPatch_clean <- HighPatch %>%
+  filter(
+    !is.na(run),
+    run >= 0 & run <= 30,
+    tick %in% c(300, 600, 900, 1200, 1500, 1800, 
+                2100, 2400, 2700, 3000, 3300, 3600),
+    pxcor >= -30 & pxcor <= 30,
+    pycor >= -30 & pycor <= 30,
+    !is.na(severe) & severe >= 0,
+    !is.na(moderate) & moderate >= 0,
+    !is.na(mild) & mild >= 0,
+    !is.na(flow) & flow >= 0,
+    !is.na(`break-count`) & `break-count` >= 0
   )
+# ==============================
+# 2. Line plots of speed
+# ==============================
 
-# 2. Mean of totals across runs (simulations)
-conflict_summary <- patch_conflict_totals %>%
-  group_by(pxcor, pycor) %>%
-  summarize(
-    mean_total_severe = mean(total_severe, na.rm = TRUE),
-    mean_total_moderate = mean(total_moderate, na.rm = TRUE),
-    mean_total_mild = mean(total_mild, na.rm = TRUE),
-    mean_conflict = mean(total_severe + total_moderate + total_mild, na.rm = TRUE),
-    .groups = "drop"
-  )
+plot_global_speeds <- function(global_data, scenario_name) {
+  mean_per_tick <- global_data %>%
+    group_by(tick) %>%
+    summarize(
+      mean_bike = mean(`mean.speed.bike`, na.rm = TRUE),
+      sd_bike = sd(`mean.speed.bike`, na.rm = TRUE),
+      mean_ped = mean(`mean.speed.ped`, na.rm = TRUE),
+      sd_ped = sd(`mean.speed.ped`, na.rm = TRUE)
+    )
+  
+  mean_per_tick_long <- mean_per_tick %>%
+    pivot_longer(
+      cols = c(mean_bike, mean_ped, sd_bike, sd_ped),
+      names_to = c("metric", "agent"),
+      names_pattern = "(mean|sd)_(bike|ped)",
+      values_to = "value"
+    ) %>%
+    pivot_wider(
+      names_from = "metric",
+      values_from = "value"
+    )
+  
+  plot_title <- paste("Mean Speed Over Time -", scenario_name, "Scenario")
+  
+  p <-    ggplot(mean_per_tick_long, aes(x = tick, y = mean, color = agent, fill = agent)) +
+    geom_line(size = 1) +
+    geom_ribbon(aes(ymin = mean - sd, ymax = mean + sd), alpha = 0.2, color = NA) +
+    scale_color_manual(values = c("bike" = "blue", "ped" = "red")) +
+    scale_fill_manual(values = c("bike" = "blue", "ped" = "red")) +
+    labs(
+      title = plot_title,
+      x = "Tick",
+      y = "Mean Speed (m/s)",
+      color = "Agent",
+      fill = "Agent"
+    ) +
+    theme_minimal()
+    print(p)
+}
 
-# Plot for severe conflicts
-ggplot(conflict_summary, aes(x = pxcor, y = pycor, fill = mean_total_severe)) +
-  geom_tile() +
-  scale_fill_viridis_c(option = "inferno", direction = -1, na.value = "white") +
-  scale_x_continuous(limits = c(-30, 30), expand = c(0, 0)) +
-  scale_y_continuous(limits = c(-10, 10), expand = c(0, 0)) +
-  labs(title = "Cumulative Severe Conflicts per Patch (Mean Across Simulations)", fill = "Mean Total Severe") +
-  theme_minimal() +
-  coord_equal()
+plot_global_speeds(LowGlobal, "Low Density")
+plot_global_speeds(X2030Global, "2030")
+plot_global_speeds(HighGlobal, "High Density")
+# ==============================
+# 3. Boxplots of speed per tick
+# ==============================
 
-# Moderate plot
-ggplot(conflict_summary, aes(x = pxcor, y = pycor, fill = mean_total_moderate)) +
-  geom_tile() +
-  scale_fill_viridis_c(option = "plasma", direction = -1,  na.value = "white") +
-  scale_x_continuous(limits = c(-30, 30), expand = c(0, 0)) +
-  scale_y_continuous(limits = c(-10, 10), expand = c(0, 0)) +
-  labs(title = "Cumulative Moderate Conflicts per Patch (Mean Across Simulations)", fill = "Mean Total Moderate") +
-  theme_minimal() +
-  coord_equal()
+plot_global_speed_boxplot <- function(global_data, scenario_name) {
+  global_long <- global_data %>%
+    pivot_longer(cols = c(mean.speed.bike, mean.speed.ped),
+                 names_to = "agent", values_to = "speed") %>%
+    mutate(agent = ifelse(agent == "mean.speed.bike", "Bike", "Pedestrian"))
+  
+  p <- ggplot(global_long, aes(x = as.factor(tick), y = speed, fill = agent)) +
+    geom_boxplot(outlier.size = 0.5, position = position_dodge(width = 0.8)) +
+    labs(
+      title = paste("Distribution of Speeds per Tick -", scenario_name, "Scenario"),
+      x = "Tick", y = "Speed (m/s)"
+    ) +
+    theme_minimal() +
+    scale_fill_manual(values = c("Bike" = "blue", "Pedestrian" = "red"))
+  
+  print(p)
+}
 
-# Mild plot
-ggplot(conflict_summary, aes(x = pxcor, y = pycor, fill = mean_total_mild)) +
-  geom_tile() +
-  scale_fill_viridis_c(option = "plasma", direction = -1,  na.value = "white") +
-  scale_x_continuous(limits = c(-30, 30), expand = c(0, 0)) +
-  scale_y_continuous(limits = c(-10, 10), expand = c(0, 0)) +
-  labs(title = "Cumulative Mild Conflicts per Patch (Mean Across Simulations)", fill = "Mean Total Mild") +
-  theme_minimal() +
-  coord_equal()
-
-# 1. Sum all conflicts per patch per run
-patch_conflict_totals$all_conflicts <- patch_conflict_totals$total_severe +
-  patch_conflict_totals$total_moderate +
-  patch_conflict_totals$total_mild
-
-# 2. Then average across runs
-all_conflicts_summary <- patch_conflict_totals %>%
-  group_by(pxcor, pycor) %>%
-  summarize(
-    mean_total_all_conflicts = mean(all_conflicts, na.rm = TRUE),
-    .groups = "drop"
-  )
-
-# Plot all conflicts
-ggplot(all_conflicts_summary, aes(x = pxcor, y = pycor, fill = mean_total_all_conflicts)) +
-  geom_tile() +
-  scale_fill_viridis_c(option = "inferno", direction = -1, na.value = "white") +
-  scale_x_continuous(limits = c(-30, 30), expand = c(0, 0)) +
-  scale_y_continuous(limits = c(-10, 10), expand = c(0, 0)) +
-  labs(title = "Cumulative All Conflicts per Patch (Mean Across Simulations)", fill = "Mean Total Conflicts") +
-  theme_minimal() +
-  coord_equal()
+# Example usage:
+plot_global_speed_boxplot(LowGlobal, "Low Density")
+plot_global_speed_boxplot(X2030Global, "2030")
+plot_global_speed_boxplot(HighGlobal, "High Density")
+# ==============================
+# 4. Conflict
+# ==============================
+plot_conflict_heatmap <- function(patch_conflict_totals, scenario_name, level = c("severe", "moderate", "mild", "all")) {
+  level <- match.arg(level)
+  
+  # Compute summary based on the requested level
+  if (level == "all") {
+    patch_conflict_totals <- patch_conflict_totals %>%
+      mutate(all_conflicts = severe + moderate + mild)
+    conflict_summary <- patch_conflict_totals %>%
+      group_by(pxcor, pycor) %>%
+      summarize(mean_total = mean(all_conflicts, na.rm = TRUE), .groups = "drop")
+    fill_lab <- "Mean Total Conflicts"
+    plot_title <- paste("Cumulative All Conflicts per Patch (Mean Across Simulations) -", scenario_name)
+    palette <- "inferno"
+  } else if (level == "severe") {
+    conflict_summary <- patch_conflict_totals %>%
+      group_by(pxcor, pycor) %>%
+      summarize(mean_total = mean(severe, na.rm = TRUE), .groups = "drop")
+    fill_lab <- "Mean Total Severe"
+    plot_title <- paste("Cumulative Severe Conflicts per Patch (Mean Across Simulations) -", scenario_name)
+    palette <- "inferno"
+  } else if (level == "moderate") {
+    conflict_summary <- patch_conflict_totals %>%
+      group_by(pxcor, pycor) %>%
+      summarize(mean_total = mean(moderate, na.rm = TRUE), .groups = "drop")
+    fill_lab <- "Mean Total Moderate"
+    plot_title <- paste("Cumulative Moderate Conflicts per Patch (Mean Across Simulations) -", scenario_name)
+    palette <- "plasma"
+  } else if (level == "mild") {
+    conflict_summary <- patch_conflict_totals %>%
+      group_by(pxcor, pycor) %>%
+      summarize(mean_total = mean(mild, na.rm = TRUE), .groups = "drop")
+    fill_lab <- "Mean Total Mild"
+    plot_title <- paste("Cumulative Mild Conflicts per Patch (Mean Across Simulations) -", scenario_name)
+    palette <- "plasma"
+  }
+  
+  # Ensure coordinates are numeric (fixes plotting error)
+  conflict_summary <- conflict_summary %>%
+    mutate(
+      pxcor = as.numeric(pxcor),
+      pycor = as.numeric(pycor)
+    )
+  
+  # Now plot
+  p <- ggplot(conflict_summary, aes(x = pxcor, y = pycor, fill = mean_total)) +
+    geom_tile() +
+    scale_fill_viridis_c(option = palette, direction = -1, na.value = "white") +
+    scale_x_continuous(limits = c(-30, 30), expand = c(0, 0)) +
+    scale_y_continuous(limits = c(-10, 10), expand = c(0, 0)) +
+    labs(title = plot_title, fill = fill_lab) +
+    theme_minimal() +
+    coord_equal()
+  print(p)
+}
+plot_conflict_heatmap(HighPatch_clean, "High Density", "severe")
+plot_conflict_heatmap(LowPatch_clean, "Low Density", "severe")
+plot_conflict_heatmap(LowPatch_clean, "Low Density", "moderate")
+plot_conflict_heatmap(LowPatch_clean, "Low Density", "mild")
+plot_conflict_heatmap(LowPatch_clean, "Low Density", "all")
 
 # ==============================
 # 4. Flow heatmap animation (time lapse)
