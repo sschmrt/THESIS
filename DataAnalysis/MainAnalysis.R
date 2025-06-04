@@ -47,6 +47,12 @@ colnames(LowPatch) <- patch_colnames
 LowPatch$Scenario <- get_scenario("LowPatch.csv")
 LowPatch$Type <- "Patch"
 
+LowPatch <- LowPatch %>%
+  mutate(
+    pxcor = as.numeric(pxcor),
+    pycor = as.numeric(pycor)
+  )
+
 # 2030Global
 X2030Global <- read.csv("2030Global.csv")
 colnames(X2030Global) <- global_colnames
@@ -59,6 +65,12 @@ colnames(X2030Patch) <- patch_colnames
 X2030Patch$Scenario <- get_scenario("2030Patch.csv")
 X2030Patch$Type <- "Patch"
 
+X2030Patch <- X2030Patch %>%
+  mutate(
+    pxcor = as.numeric(pxcor),
+    pycor = as.numeric(pycor)
+  )
+
 # HighGlobal
 HighGlobal <- read.csv("HighGlobal.csv")
 colnames(HighGlobal) <- global_colnames
@@ -70,6 +82,16 @@ HighPatch <- read.csv("HighPatch.csv")
 colnames(HighPatch) <- patch_colnames
 HighPatch$Scenario <- get_scenario("HighPatch.csv")
 HighPatch$Type <- "Patch"
+mutate(
+  pxcor = as.numeric(pxcor),
+  pycor = as.numeric(pycor)
+)
+
+HighPatch <- HighPatch %>%
+  mutate(
+    pxcor = as.numeric(pxcor),
+    pycor = as.numeric(pycor)
+  )
 
 LowPatch_clean <- LowPatch %>%
   filter(
