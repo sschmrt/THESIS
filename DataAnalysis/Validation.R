@@ -7,6 +7,7 @@ library(ggplot2)
 library(rlang)
 library(flextable)
 library(officer)
+library(patchwork)
 
 # ---- SET WORKING DIRECTORY ----
 setwd("C:/Users/marta/Desktop/THESIS/Outputs")
@@ -173,3 +174,44 @@ for (i in seq_along(ofat_vars)) {
   )
 }
 
+# ---- LOAD REQUIRED LIBRARIES ----
+library(ggplot2)
+library(readr)
+library(dplyr)
+library(patchwork) # Or use cowplot::plot_grid
+
+# ---- FUNCTION TO CREATE APA STYLE PLOT ----
+create_ofat_plot <- function(summary_file, par, ylab, xlab, title) {
+  df <- read_csv(summary_file, show_col_types = FALSE)
+  
+  ggplot(df, aes_string(x = par, y = "total_mild_mean")) +
+    geom_point(size = 3) +
+    geom_errorbar(aes(ymin = total_mild_mean_lower, ymax = total_mild_mean_upper), width = 0.2) +
+    theme_minimal(base_size = 14, base_family = "Times") +
+    labs(
+      title = title,
+      x = xlab,
+      y = ylab
+    ) +
+    theme(
+      plot.title = element_text(face = "bold", hjust = 0.5),
+      axis.title = element_text(face = "bold"),
+      axis.text = element_text(face = "plain")
+    )
+}
+
+# ---- FILE NAMES ----
+summary_files <- paste0("ofat_CI_summary_by_", c("D", "V0-ped", "v0-bike"), ".csv")
+ofat_vars <- c("D", "V0-ped", "v0-bike")
+
+# ---- CREATE PLOTS ----
+plot1 <- create_ofat_plot(summary_files[1], "D", "Mean Mild Conflicts", "Characteristic Distance (D)", "A) D")
+plot2 <- create_ofat_plot(summary_files[2], "V0-ped", "Mean Mild Conflicts", "Desired Velocity Pedestrians (V0-ped)", "B) V0-ped")
+plot3 <- create_ofat_plot(summary_files[3], "v0-bike", "Mean Mild Conflicts", "Desired Velocity Bikes (v0-bike)", "C) v0-bike")
+
+# ---- COMBINE PLOTS SIDE BY SIDE ----
+combined <- plot1 + plot2 + plot3 + plot_layout(ncol = 3, guides = 'collect')
+print(combined)
+
+# ---- SAVE TO FILE ----
+ggsave("OFAT_Mild_Conflicts_ThreePanel.png", combined, width = 15, height = 6, dpi = 300)

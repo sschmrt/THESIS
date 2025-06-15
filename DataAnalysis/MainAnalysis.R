@@ -196,6 +196,106 @@ p_low + p_high
 
 # High and 2030 beside each other
 p_high + p_2030
+
+
+# Helper function to find max and min speeds for each agent in a scenario
+find_speed_extremes <- function(global_data, scenario_name) {
+  summary <- global_data %>%
+    group_by(tick) %>%
+    summarize(
+      mean_bike = mean(`mean.speed.bike`, na.rm = TRUE),
+      mean_ped  = mean(`mean.speed.ped`, na.rm = TRUE)
+    )
+  
+  bike_max <- summary %>% filter(mean_bike == max(mean_bike, na.rm = TRUE))
+  bike_min <- summary %>% filter(mean_bike == min(mean_bike, na.rm = TRUE))
+  ped_max  <- summary %>% filter(mean_ped  == max(mean_ped, na.rm = TRUE))
+  ped_min  <- summary %>% filter(mean_ped  == min(mean_ped, na.rm = TRUE))
+  
+  cat("\nScenario:", scenario_name, "\n")
+  cat("Bike - Max speed at tick", bike_max$tick, ":", bike_max$mean_bike, "\n")
+  cat("Bike - Min speed at tick", bike_min$tick, ":", bike_min$mean_bike, "\n")
+  cat("Pedestrian - Max speed at tick", ped_max$tick, ":", ped_max$mean_ped, "\n")
+  cat("Pedestrian - Min speed at tick", ped_min$tick, ":", ped_min$mean_ped, "\n")
+  
+  # Optionally, return a data frame
+  data.frame(
+    Scenario = scenario_name,
+    Agent = c("Bike", "Bike", "Pedestrian", "Pedestrian"),
+    Type  = c("Max", "Min", "Max", "Min"),
+    Tick  = c(bike_max$tick, bike_min$tick, ped_max$tick, ped_min$tick),
+    Speed = c(bike_max$mean_bike, bike_min$mean_bike, ped_max$mean_ped, ped_min$mean_ped)
+  )
+}
+
+# Run for each scenario
+extremes_low <- find_speed_extremes(LowGlobal, "Low Density")
+extremes_high <- find_speed_extremes(HighGlobal, "High Density")
+extremes_2030 <- find_speed_extremes(X2030Global, "2030")
+
+# Combine results if you want a single summary table
+extremes_all <- rbind(extremes_low, extremes_high, extremes_2030)
+print(extremes_all)
+
+# Helper function: Get ticks in lower and upper 10% of variance for each agent
+find_variance_extremes <- function(global_data, scenario_name) {
+  # Group by tick and calculate variance per tick for both agents
+  var_per_tick <- global_data %>%
+    group_by(tick) %>%
+    summarize(
+      var_bike = var(`mean.speed.bike`, na.rm = TRUE),
+      var_ped  = var(`mean.speed.ped`, na.rm = TRUE)
+    )
+  
+  # For each agent, get quantiles
+  quant_bike <- quantile(var_per_tick$var_bike, probs = c(0.1, 0.9), na.rm = TRUE)
+  quant_ped  <- quantile(var_per_tick$var_ped,  probs = c(0.1, 0.9), na.rm = TRUE)
+  
+  # Ticks in lower and upper 10% for each
+  lower10_bike <- var_per_tick %>% filter(var_bike <= quant_bike[1])
+  upper10_bike <- var_per_tick %>% filter(var_bike >= quant_bike[2])
+  lower10_ped  <- var_per_tick %>% filter(var_ped  <= quant_ped[1])
+  upper10_ped  <- var_per_tick %>% filter(var_ped  >= quant_ped[2])
+  
+  # Print or return a summary
+  cat("\nScenario:", scenario_name, "\n")
+  cat("Bike - Lower 10% variance ticks:\n")
+  print(lower10_bike[, c("tick", "var_bike")])
+  cat("Bike - Upper 10% variance ticks:\n")
+  print(upper10_bike[, c("tick", "var_bike")])
+  cat("Pedestrian - Lower 10% variance ticks:\n")
+  print(lower10_ped[, c("tick", "var_ped")])
+  cat("Pedestrian - Upper 10% variance ticks:\n")
+  print(upper10_ped[, c("tick", "var_ped")])
+  
+  # Combine for possible table output
+  data.frame(
+    Scenario = scenario_name,
+    Agent = c(
+      rep("Bike", nrow(lower10_bike)), rep("Bike", nrow(upper10_bike)),
+      rep("Pedestrian", nrow(lower10_ped)), rep("Pedestrian", nrow(upper10_ped))
+    ),
+    Quantile = c(
+      rep("Lower 10%", nrow(lower10_bike)), rep("Upper 10%", nrow(upper10_bike)),
+      rep("Lower 10%", nrow(lower10_ped)),  rep("Upper 10%", nrow(upper10_ped))
+    ),
+    Tick = c(
+      lower10_bike$tick, upper10_bike$tick, lower10_ped$tick, upper10_ped$tick
+    ),
+    Variance = c(
+      lower10_bike$var_bike, upper10_bike$var_bike, lower10_ped$var_ped, upper10_ped$var_ped
+    )
+  )
+}
+
+# Run for each scenario
+bikeped_low  <- find_variance_extremes(LowGlobal,    "Low Density")
+bikeped_high <- find_variance_extremes(HighGlobal,   "High Density")
+bikeped_2030 <- find_variance_extremes(X2030Global,  "2030")
+
+# Combine all for table if needed
+bikeped_all <- rbind(bikeped_low, bikeped_high, bikeped_2030)
+print(bikeped_all)
 # ==============================
 # 3. Boxplots of speed per tick
 # ==============================
@@ -386,76 +486,90 @@ plot_waiting_heatmap(X2030Patch_clean, "2030")
 # ==============================
 # 5. Flow and Conflict Aggregation
 # ==============================
+summarize_patch_waiting <- function(patchdata_clean) {
+  patch_wait_totals <- patchdata_clean %>%
+    group_by(run, pxcor, pycor) %>%
+    summarize(total_wait = sum(`break-count`, na.rm = TRUE), .groups = "drop")
+  
+  waiting_summary <- patch_wait_totals %>%
+    group_by(pxcor, pycor) %>%
+    summarize(mean_waiting = mean(total_wait, na.rm = TRUE), .groups = "drop")
+  return(waiting_summary)
+}
 
-plot_flow_conflict_overlay <- function(flow_summary, conflict_summary, scenario_name = "") {
-  # Calculate thresholds
+# 2. Overlay Plot Function (now top-level)
+plot_flow_conflict_overlay <- function(flow_summary, conflict_summary, waiting_summary, scenario_name = "") {
   conflict_threshold <- quantile(conflict_summary$mean_conflict, 0.9, na.rm = TRUE)
   flow_threshold <- quantile(flow_summary$mean_flow, 0.9, na.rm = TRUE)
+  waiting_threshold <- quantile(waiting_summary$mean_waiting, 0.9, na.rm = TRUE)
   
-  # Merge summaries
   overlay_data <- conflict_summary %>%
     inner_join(flow_summary, by = c("pxcor", "pycor")) %>%
+    inner_join(waiting_summary, by = c("pxcor", "pycor")) %>%
     mutate(
       high_conflict = mean_conflict >= conflict_threshold,
       high_flow = mean_flow >= flow_threshold,
+      high_waiting = mean_waiting >= waiting_threshold,
       both = high_conflict & high_flow
     )
   
   ggplot(overlay_data, aes(x = pxcor, y = pycor)) +
     geom_tile(aes(fill = mean_flow)) +
     geom_tile(
+      data = subset(overlay_data, high_waiting),
+      aes(x = pxcor, y = pycor),
+      fill = scales::alpha("seagreen3", 0.35),  # mellow transparent green
+      color = NA
+    ) +
+    geom_tile(
       data = subset(overlay_data, high_conflict),
       fill = NA, color = "red", size = 0.8
     ) +
-    geom_point(
+    geom_tile(
       data = subset(overlay_data, both),
       aes(x = pxcor, y = pycor),
-      fill = NA, color = "red", size = 4
+      fill = scales::alpha("red2", 0.85),  # mellow transparent green
+      color = NA
     ) +
     scale_fill_viridis_c(option = "plasma", direction = -1, na.value = "white") +
-    scale_y_continuous(limits = c(-10, 10), expand = c(0, 0)) +   # <--- ADDED LINE
+    scale_y_continuous(limits = c(-10, 10), expand = c(0, 0)) +
     labs(
-      title = paste("Overlay of High Conflict and High Flow Areas", scenario_name),
-      fill = "Mean Flow"
-    ) +
-    labs(
-      title = paste("High Conflict and Flow Areas", "-", scenario_name),
+      title = paste("High Conflict, Flow, and Waiting Areas -", scenario_name),
       fill = "Mean Flow"
     ) +
     theme_minimal() +
     coord_equal()
 }
 
+# 3. Summarize all inputs for each scenario
+flow_high <- HighPatch_clean %>%
+  group_by(pxcor, pycor) %>%
+  summarize(mean_flow = mean(flow, na.rm=TRUE), .groups = "drop")
+conflict_high <- HighPatch_clean %>%
+  group_by(pxcor, pycor) %>%
+  summarize(mean_conflict = mean(severe + moderate + mild, na.rm=TRUE), .groups = "drop")
+waiting_high <- summarize_patch_waiting(HighPatch_clean)
 
 flow_low <- LowPatch_clean %>%
   group_by(pxcor, pycor) %>%
   summarize(mean_flow = mean(flow, na.rm=TRUE), .groups = "drop")
-
 conflict_low <- LowPatch_clean %>%
   group_by(pxcor, pycor) %>%
   summarize(mean_conflict = mean(severe + moderate + mild, na.rm=TRUE), .groups = "drop")
-
-flow_high <- HighPatch_clean %>%
-  group_by(pxcor, pycor) %>%
-  summarize(mean_flow = mean(flow, na.rm=TRUE), .groups = "drop")
-
-conflict_high <- HighPatch_clean %>%
-  group_by(pxcor, pycor) %>%
-  summarize(mean_conflict = mean(severe + moderate + mild, na.rm=TRUE), .groups = "drop")
+waiting_low <- summarize_patch_waiting(LowPatch_clean)
 
 flow_x2030 <- X2030Patch_clean %>%
   group_by(pxcor, pycor) %>%
   summarize(mean_flow = mean(flow, na.rm=TRUE), .groups = "drop")
-
 conflict_x2030 <- X2030Patch_clean %>%
   group_by(pxcor, pycor) %>%
   summarize(mean_conflict = mean(severe + moderate + mild, na.rm=TRUE), .groups = "drop")
+waiting_x2030 <- summarize_patch_waiting(X2030Patch_clean)
 
-plot_flow_conflict_overlay(flow_high, conflict_high, "High Density")
-plot_flow_conflict_overlay(flow_low, conflict_low, "Low Density")
-plot_flow_conflict_overlay(flow_x2030, conflict_x2030, "2030")
-
-
+# 4. Now plot (these will work!)
+plot_flow_conflict_overlay(flow_high, conflict_high, waiting_high, "High Density")
+plot_flow_conflict_overlay(flow_low, conflict_low, waiting_low, "Low Density")
+plot_flow_conflict_overlay(flow_x2030, conflict_x2030, waiting_x2030, "2030")
 # ==============================
 # 6. Summary Data
 # ==============================
@@ -541,3 +655,63 @@ ft_high_2030 <- flextable(table_high_2030)
 
 print(ft_high_low)
 print(ft_high_2030)
+
+# ==============================
+# 7. Compare conflict counts
+# ==============================
+
+# Calculate total conflicts for Low Density
+total_conflicts_low <- LowPatch_clean %>%
+  summarise(total_conflicts = sum(severe + moderate + mild, na.rm = TRUE)) %>%
+  pull(total_conflicts)
+
+# Calculate total conflicts for High Density
+total_conflicts_high <- HighPatch_clean %>%
+  summarise(total_conflicts = sum(severe + moderate + mild, na.rm = TRUE)) %>%
+  pull(total_conflicts)
+
+# Calculate total conflicts for 2030
+total_conflicts_2030 <- X2030Patch_clean %>%
+  summarise(total_conflicts = sum(severe + moderate + mild, na.rm = TRUE)) %>%
+  pull(total_conflicts)
+
+# Print out the results
+cat("Total Conflicts (Low Density):", total_conflicts_low, "\n")
+cat("Total Conflicts (High Density):", total_conflicts_high, "\n")
+cat("Total Conflicts (2030):", total_conflicts_2030, "\n")
+
+comparison_table <- data.frame(
+  Scenario = c("Low Density", "High Density", "2030"),
+  Total_Conflicts = c(total_conflicts_low, total_conflicts_high, total_conflicts_2030),
+  Total_Agents = c(1400, 4600, 7820)
+)
+
+# Calculate conflict rates
+comparison_table$Conflicts_per_Agent <- comparison_table$Total_Conflicts / comparison_table$Total_Agents
+comparison_table$Conflicts_per_100_Agents <- (comparison_table$Total_Conflicts / comparison_table$Total_Agents) * 100
+
+print(comparison_table)
+
+
+# For Low Density
+total_flow_low <- sum(LowPatch_clean$flow, na.rm = TRUE)
+n_patches_low <- n_distinct(LowPatch_clean$pxcor, LowPatch_clean$pycor)
+flow_per_patch_low <- total_flow_low / 3600
+
+# For High Density
+total_flow_high <- sum(HighPatch_clean$flow, na.rm = TRUE)
+n_patches_high <- n_distinct(HighPatch_clean$pxcor, HighPatch_clean$pycor)
+flow_per_patch_high <- total_flow_high / 3600
+
+# For 2030 Scenario
+total_flow_2030 <- sum(X2030Patch_clean$flow, na.rm = TRUE)
+n_patches_2030 <- n_distinct(X2030Patch_clean$pxcor, X2030Patch_clean$pycor)
+flow_per_patch_2030 <- total_flow_2030 / 3600
+
+flow_patch_table <- data.frame(
+  Scenario = c("Low Density", "High Density", "2030"),
+  Total_Flow = c(total_flow_low, total_flow_high, total_flow_2030),
+  Flow_per_Patch = c(flow_per_patch_low, flow_per_patch_high, flow_per_patch_2030)
+)
+
+print(flow_patch_table)
